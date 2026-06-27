@@ -1,0 +1,76 @@
+server:
+    port: 8080
+    admin_port: 9090
+    read_timeout: 10s
+    write_timeout: 10s
+    idle_timeout: 60s
+    shutdown_timeout: 30s
+
+redis:
+    addr: "localhost:6379"
+    password: ""
+    db: 0
+    pool_size: 50
+    min_idle_conns: 10
+    max_retries: 3
+
+routes:
+    - path: /api/v1/users
+      strip_prefix: true
+      upstream_group: user-service
+      rate_limit:
+          requests_per_second: 100
+          burst: 20
+      load_balancer: round-robin
+
+    - path: /api/v1/orders
+      strip_prefix: true
+      upstream_group: order-service
+      rate_limit:
+          requests_per_second: 50
+          burst: 10
+      load_balancer: least-connections
+
+    - path: /api/v1/grpc
+      type: grpc
+      upstream_group: grpc-service
+      load_balancer: round-robin
+
+upstream_groups:
+    - name: user-service
+      upstreams:
+          - url: http://service-a:8081
+          - url: http://service-b:8082
+      health_check:
+          path: /health
+          interval: 5s
+          timeout: 2s
+      circuit_breaker:
+          failure_threshold: 5
+          success_threshold: 2
+          timeout: 30s
+
+    - name: order-service
+      upstreams:
+          - url: http://service-d:8083
+      health_check:
+          path: /health
+          interval: 5s
+          timeout: 2s
+      circuit_breaker:
+          failure_threshold: 3
+          success_threshold: 1
+          timeout: 15s
+
+    - name: grpc-service
+      upstreams:
+          - url: service-c:9000
+      type: grpc
+
+metrics:
+    enabled: true
+    path: /metrics
+
+logging:
+    level: info
+    format: json

@@ -1,0 +1,123 @@
+version: "3.8"
+
+networks:
+    gateway-net:
+        driver: bridge
+
+services:
+    gateway:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        ports:
+            - "8080:8080"
+            - "9090:9090"
+        depends_on:
+            redis:
+                condition: service_healthy
+        networks:
+            - gateway-net
+        restart: unless-stopped
+        env_file: .env
+        environment:
+            REDIS_ADDR: redis:6379
+        volumes:
+            - ./configs/gateway.yaml:/app/configs/gateway.yaml
+
+    service-a:
+        build:
+            context: ./backends/service-a
+            dockerfile: Dockerfile
+        ports:
+            - "8081:8081"
+        networks:
+            - gateway-net
+        restart: unless-stopped
+        environment:
+            PORT: "8081"
+
+    service-b:
+        build:
+            context: ./backends/service-b
+            dockerfile: Dockerfile
+        ports:
+            - "8082:8082"
+        networks:
+            - gateway-net
+        restart: unless-stopped
+        environment:
+            PORT: "8082"
+            DELAY_MS: "50"
+            ERROR_RATE: "0.05"
+
+    service-c:
+        build:
+            context: ./backends/service-c
+            dockerfile: Dockerfile
+        ports:
+            - "9000:9000"
+        networks:
+            - gateway-net
+        restart: unless-stopped
+        environment:
+            PORT: "9000"
+
+    service-d:
+        build:
+            context: ./backends/service-d
+            dockerfile: Dockerfile
+        ports:
+            - "8083:8083"
+        networks:
+            - gateway-net
+        restart: unless-stopped
+        environment:
+            PORT: "8083"
+
+    redis:
+        image: redis:7-alpine
+        ports:
+            - "6379:6379"
+        networks:
+            - gateway-net
+        restart: unless-stopped
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 5s
+            timeout: 3s
+            retries: 5
+        volumes:
+            - redis-data:/data
+
+    prometheus:
+        image: prom/prometheus:latest
+        ports:
+            - "9091:9090"
+        networks:
+            - gateway-net
+        restart: unless-stopped
+        volumes:
+            - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+            - prometheus-data:/prometheus
+        command:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+
+    grafana:
+        image: grafana/grafana:latest
+        ports:
+            - "3000:3000"
+        networks:
+            - gateway-net
+        restart: unless-stopped
+        environment:
+            - GF_SECURITY_ADMIN_PASSWORD=admin
+            - GF_USERS_ALLOW_SIGN_UP=false
+        volumes:
+            - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+            - grafana-data:/var/lib/grafana
+
+volumes:
+    redis-data:
+    prometheus-data:
+    grafana-data:

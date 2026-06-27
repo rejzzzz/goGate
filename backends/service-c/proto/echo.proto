@@ -1,0 +1,34 @@
+// echo.proto - gRPC Echo service definition
+//
+// Purpose:
+// - Test gateway gRPC proxy functionality
+// - Verify transparent proxying without proto schema knowledge
+// - Verify h2c (HTTP/2 cleartext) support
+//
+// Service:
+// - Echo: Echoes back the message with a timestamp
+//
+// Usage:
+// - Generate Go code: protoc --go_out=. --go-grpc_out=. echo.proto
+
+syntax = "proto3";
+
+package echo;
+
+option go_package = "github.com/yourusername/api-gateway/backends/service-c/proto";
+
+// EchoService echoes back messages
+service EchoService {
+  rpc Echo(EchoRequest) returns (EchoResponse);
+}
+
+// EchoRequest contains the message to echo
+message EchoRequest {
+  string message = 1;
+}
+
+// EchoResponse contains the echoed message and timestamp
+message EchoResponse {
+  string message = 1;
+  int64 timestamp = 2;
+}
