@@ -39,8 +39,8 @@ routes:
 upstream_groups:
     - name: user-service
       upstreams:
-          - url: http://service-a:8081
-          - url: http://service-b:8082
+          - url: http://localhost:8081
+          - url: http://localhost:8082
       health_check:
           path: /health
           interval: 5s
@@ -52,7 +52,7 @@ upstream_groups:
 
     - name: order-service
       upstreams:
-          - url: http://service-d:8083
+          - url: http://localhost:8083
       health_check:
           path: /health
           interval: 5s

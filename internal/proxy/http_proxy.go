@@ -1,36 +1,61 @@
 package proxy
 
-// http_proxy.go - HTTP reverse proxy implementation
-//
-// Responsibilities:
-// - Forward HTTP requests to selected upstream using httputil.ReverseProxy
-// - Rewrite request URL to target upstream (strip prefix if configured)
-// - Inject custom headers: X-Forwarded-For, X-Request-ID, X-Gateway-Version
-// - Handle upstream timeouts gracefully (return 502 Bad Gateway)
-// - Inject response headers on errors (X-Gateway-Error, X-Circuit-Breaker)
-// - Preserve original request method, headers, and body
-//
-// Key Functions:
-// - NewHTTPProxy(transport *http.Transport) *HTTPProxy: Create proxy with custom transport
-// - ServeHTTP(w http.ResponseWriter, r *http.Request, upstream *Upstream, stripPrefix string): Forward request to upstream
-// - director(r *http.Request, upstreamURL string, stripPrefix string): Rewrite request for upstream
-// - modifyResponse(r *http.Response) error: Inject response headers
-//
-// Inputs:
-// - http.Request from client
-// - Upstream URL selected by load balancer
-// - Strip prefix configuration from route
-//
-// Outputs:
-// - HTTP response forwarded from upstream (or error response if upstream fails)
-// - Injected headers: X-Forwarded-For, X-Request-ID, X-Gateway-Version
+import (
+	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"strings"
+)
 
+// HTTPProxy is responsible for forwarding requests to upstream servers
 type HTTPProxy struct {
-	// TODO: Implement HTTP reverse proxy
+	transport http.RoundTripper
 }
 
 // NewHTTPProxy creates a new HTTP reverse proxy
-func NewHTTPProxy(transport interface{}) *HTTPProxy {
-	// TODO: Implement HTTP proxy initialization
-	return &HTTPProxy{}
+func NewHTTPProxy(transport http.RoundTripper) *HTTPProxy {
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+	return &HTTPProxy{
+		transport: transport,
+	}
+}
+
+// ServeHTTP forwards the request to the upstream URL, optionally stripping a prefix
+func (p *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request, upstreamURL string, stripPrefix string) {
+	target, err := url.Parse(upstreamURL)
+	if err != nil {
+		http.Error(w, "Bad Gateway: Invalid Upstream URL", http.StatusBadGateway)
+		return
+	}
+
+	proxy := &httputil.ReverseProxy{
+		Director: func(req *http.Request) {
+			req.URL.Scheme = target.Scheme
+			req.URL.Host = target.Host
+
+			// Strip the prefix if configured
+			if stripPrefix != "" && strings.HasPrefix(req.URL.Path, stripPrefix) {
+				req.URL.Path = strings.TrimPrefix(req.URL.Path, stripPrefix)
+				// Ensure path still starts with a slash
+				if !strings.HasPrefix(req.URL.Path, "/") {
+					req.URL.Path = "/" + req.URL.Path
+				}
+			}
+
+			// Add custom gateway headers
+			req.Header.Set("X-Gateway-Version", "1.0.0")
+			
+			// Clean up Host header to match target
+			req.Host = target.Host
+		},
+		Transport: p.transport,
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			w.Header().Set("X-Gateway-Error", err.Error())
+			http.Error(w, "Bad Gateway", http.StatusBadGateway)
+		},
+	}
+
+	proxy.ServeHTTP(w, r)
 }
