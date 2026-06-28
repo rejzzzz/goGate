@@ -19,7 +19,16 @@ package middleware
 // - X-Request-ID header set in request and response
 // - Request ID in context for logging
 
-import "net/http"
+import (
+	"context"
+	"net/http"
+
+	"github.com/google/uuid"
+)
+
+type contextKey string
+
+const RequestIDKey contextKey = "requestID"
 
 // RequestID returns a middleware that generates or propagates request IDs
 func RequestID() Middleware {
@@ -27,16 +36,16 @@ func RequestID() Middleware {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			requestID := r.Header.Get("X-Request-ID")
 			if requestID == "" {
-				// TODO: Generate new UUID
-				requestID = "generated-uuid"
+				requestID = uuid.New().String()
 			}
-			
+
 			// Add to request header and response
 			r.Header.Set("X-Request-ID", requestID)
 			w.Header().Set("X-Request-ID", requestID)
-			
-			// TODO: Add to request context for logging
-			next.ServeHTTP(w, r)
+
+			// Add to request context for logging
+			ctx := context.WithValue(r.Context(), RequestIDKey, requestID)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }

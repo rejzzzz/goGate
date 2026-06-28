@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/yourusername/api-gateway/internal/config"
-	"github.com/yourusername/api-gateway/internal/loadbalancer"
-	"github.com/yourusername/api-gateway/internal/proxy"
-	"github.com/yourusername/api-gateway/internal/router"
+	"github.com/rejzzzz/goGate/internal/config"
+	"github.com/rejzzzz/goGate/internal/loadbalancer"
+	"github.com/rejzzzz/goGate/internal/proxy"
+	"github.com/rejzzzz/goGate/internal/router"
 )
 
 func main() {

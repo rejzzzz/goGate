@@ -22,6 +22,8 @@ package middleware
 
 import (
 	"net/http"
+	"runtime/debug"
+
 	"go.uber.org/zap"
 )
 
@@ -31,9 +33,14 @@ func Recovery(logger *zap.Logger) Middleware {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if err := recover(); err != nil {
-					// TODO: Log panic with stack trace
-					// TODO: Return HTTP 500
-					logger.Error("panic recovered", zap.Any("error", err))
+					requestID, _ := r.Context().Value(RequestIDKey).(string)
+					
+					logger.Error("panic recovered",
+						zap.String("request_id", requestID),
+						zap.Any("error", err),
+						zap.ByteString("stacktrace", debug.Stack()),
+					)
+					
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				}
 			}()
