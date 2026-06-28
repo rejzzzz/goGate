@@ -1,26 +1,84 @@
 package main
 
-// main.go - Gateway application entry point
-// 
-// Responsibilities:
-// - Initialize structured logger (zap) with configured log level
-// - Load and validate gateway.yaml configuration via Viper
-// - Establish Redis connection pool for rate limiting
-// - Start main HTTP server on port 8080 (public traffic)
-// - Start admin HTTP server on port 9090 (admin UI + API)
-// - Set up OS signal handlers (SIGTERM, SIGINT) for graceful shutdown
-// - Coordinate shutdown sequence: stop listeners → drain connections → close resources
-//
-// Inputs:
-// - gateway.yaml (via Viper)
-// - Environment variables (GATEWAY_*, REDIS_*)
-// - Command-line flags (--config, --log-level)
-//
-// Outputs:
-// - Two HTTP servers running on configured ports
-// - Structured JSON logs to stdout
-// - Exit code 0 on clean shutdown, non-zero on startup errors
+import (
+	"github.com/yourusername/api-gateway/internal/config"
+	"github.com/yourusername/api-gateway/internal/proxy"
+	"github.com/yourusername/api-gateway/internal/router"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+)
 
 func main() {
-	// TODO: Implement gateway initialization and startup
+	log.Println("Starting Distributed API Gateway...")
+
+	// 1. Load Configuration
+	configPath := "configs/gateway.yaml"
+	if envPath := os.Getenv("GATEWAY_CONFIG"); envPath != "" {
+		configPath = envPath
+	}
+	
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	// 2. Build Upstream Map (Name -> List of URLs)
+	upstreamMap := make(map[string][]string)
+	for _, group := range cfg.UpstreamGroups {
+		var urls []string
+		for _, u := range group.Upstreams {
+			urls = append(urls, u.URL)
+		}
+		upstreamMap[group.Name] = urls
+	}
+
+	// 3. Initialize Router
+	r := router.New(cfg.Routes)
+	log.Printf("Loaded %d routes", len(cfg.Routes))
+
+	// 4. Initialize Proxy
+	p := proxy.NewHTTPProxy(nil)
+
+	// 5. Build Root HTTP Handler
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		// Match Route
+		route, found := r.Match(req.URL.Path)
+		if !found {
+			http.Error(w, "Not Found: No matching route", http.StatusNotFound)
+			return
+		}
+
+		// Get upstreams
+		urls, exists := upstreamMap[route.Config.UpstreamGroup]
+		if !exists || len(urls) == 0 {
+			http.Error(w, "Bad Gateway: No Upstreams Available", http.StatusBadGateway)
+			return
+		}
+
+		// Pick first upstream (shortcut for milestone 1)
+		targetURL := urls[0]
+
+		var stripPrefix string
+		if route.Config.StripPrefix {
+			stripPrefix = route.Config.Path
+		}
+
+		// Proxy request
+		p.ServeHTTP(w, req, targetURL, stripPrefix)
+	})
+
+	// 6. Start HTTP Server
+	port := cfg.Server.Port
+	if port == 0 {
+		port = 8080 // default
+	}
+	
+	addr := fmt.Sprintf(":%d", port)
+	log.Printf("Gateway listening on %s", addr)
+	
+	if err := http.ListenAndServe(addr, handler); err != nil {
+		log.Fatalf("Server error: %v", err)
+	}
 }
