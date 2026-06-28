@@ -97,6 +97,9 @@ func main() {
 			return
 		}
 
+		target.ActiveConnections.Add(1)
+		defer target.ActiveConnections.Add(-1)
+
 		var stripPrefix string
 		if route.Config.StripPrefix {
 			stripPrefix = route.Config.Path
