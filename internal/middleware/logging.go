@@ -25,9 +25,21 @@ package middleware
 
 import (
 	"net/http"
+	"strings"
 	"time"
+
 	"go.uber.org/zap"
 )
+
+func getClientIP(r *http.Request) string {
+	clientIP := r.Header.Get("X-Forwarded-For")
+	if clientIP != "" {
+		// X-Forwarded-For can contain multiple IPs, take the first one
+		ips := strings.Split(clientIP, ",")
+		return strings.TrimSpace(ips[0])
+	}
+	return r.RemoteAddr
+}
 
 // Logging returns a middleware that logs requests and responses
 func Logging(logger *zap.Logger) Middleware {
@@ -35,21 +47,28 @@ func Logging(logger *zap.Logger) Middleware {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 			
-			// TODO: Log request start
+			requestID, _ := r.Context().Value(RequestIDKey).(string)
+			clientIP := getClientIP(r)
+
 			logger.Info("request started",
+				zap.String("request_id", requestID),
 				zap.String("method", r.Method),
 				zap.String("path", r.URL.Path),
+				zap.String("client_ip", clientIP),
+				zap.String("user_agent", r.UserAgent()),
 			)
 			
-			// Wrap response writer to capture status code
-			// TODO: Implement response writer wrapper
+			// Wrap response writer to capture status code and bytes
+			rw := newResponseWriter(w)
 			
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(rw, r)
 			
 			duration := time.Since(start)
-			// TODO: Log request completion with status and duration
 			logger.Info("request completed",
+				zap.String("request_id", requestID),
+				zap.Int("status_code", rw.statusCode),
 				zap.Duration("duration", duration),
+				zap.Int("bytes_sent", rw.bytesWritten),
 			)
 		})
 	}

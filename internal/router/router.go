@@ -4,7 +4,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/yourusername/api-gateway/internal/config"
+	"github.com/rejzzzz/goGate/internal/config"
 )
 
 // Router handles HTTP request routing
