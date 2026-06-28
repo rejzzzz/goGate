@@ -1,9 +1,10 @@
 package router
 
 import (
-	"github.com/yourusername/api-gateway/internal/config"
 	"strings"
 	"sync/atomic"
+
+	"github.com/yourusername/api-gateway/internal/config"
 )
 
 // Router handles HTTP request routing

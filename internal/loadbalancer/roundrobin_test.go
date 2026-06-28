@@ -1,23 +1,78 @@
 package loadbalancer
 
-// roundrobin_test.go - Unit tests for round-robin load balancer
-//
-// Test Cases:
-// - TestRoundRobin_EvenDistribution: Verify requests distributed evenly across N upstreams
-// - TestRoundRobin_SkipsUnhealthyUpstreams: Verify unhealthy upstreams are not selected
-// - TestRoundRobin_AllUnhealthy: Verify returns nil when all upstreams unhealthy
-// - TestRoundRobin_Concurrent: Verify thread-safety with multiple goroutines
-// - TestRoundRobin_WrapsAround: Verify counter wraps to start after reaching end
-//
-// Inputs: Mock upstream lists with various health states
-// Outputs: Assertions on selected upstream URLs and distribution
-
-import "testing"
+import (
+	"sync"
+	"testing"
+)
 
 func TestRoundRobin_EvenDistribution(t *testing.T) {
-	// TODO: Test even distribution across upstreams
+	lb := NewRoundRobin()
+	upstreams := []*Upstream{
+		{URL: "A", Healthy: true},
+		{URL: "B", Healthy: true},
+		{URL: "C", Healthy: true},
+	}
+
+	if u := lb.Next(upstreams); u == nil || u.URL != "A" {
+		t.Errorf("Expected A, got %v", u)
+	}
+	if u := lb.Next(upstreams); u == nil || u.URL != "B" {
+		t.Errorf("Expected B, got %v", u)
+	}
+	if u := lb.Next(upstreams); u == nil || u.URL != "C" {
+		t.Errorf("Expected C, got %v", u)
+	}
+	if u := lb.Next(upstreams); u == nil || u.URL != "A" {
+		t.Errorf("Expected A again, got %v", u)
+	}
+}
+
+func TestRoundRobin_SkipsUnhealthyUpstreams(t *testing.T) {
+	lb := NewRoundRobin()
+	upstreams := []*Upstream{
+		{URL: "A", Healthy: true},
+		{URL: "B", Healthy: false},
+		{URL: "C", Healthy: true},
+	}
+
+	if u := lb.Next(upstreams); u == nil || u.URL != "A" {
+		t.Errorf("Expected A, got %v", u)
+	}
+	if u := lb.Next(upstreams); u == nil || u.URL != "C" {
+		t.Errorf("Expected C, got %v", u)
+	}
 }
 
 func TestRoundRobin_AllUnhealthy(t *testing.T) {
-	// TODO: Test returns nil when all unhealthy
+	lb := NewRoundRobin()
+	upstreams := []*Upstream{
+		{URL: "A", Healthy: false},
+		{URL: "B", Healthy: false},
+	}
+
+	if u := lb.Next(upstreams); u != nil {
+		t.Errorf("Expected nil, got %v", u)
+	}
+}
+
+func TestRoundRobin_Concurrent(t *testing.T) {
+	lb := NewRoundRobin()
+	upstreams := []*Upstream{
+		{URL: "A", Healthy: true},
+		{URL: "B", Healthy: true},
+	}
+
+	var wg sync.WaitGroup
+	// Run 1000 concurrent requests to test thread-safety
+	for i := 0; i < 1000; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			u := lb.Next(upstreams)
+			if u == nil {
+				t.Error("Expected an upstream, got nil")
+			}
+		}()
+	}
+	wg.Wait()
 }

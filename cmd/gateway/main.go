@@ -1,13 +1,15 @@
 package main
 
 import (
-	"github.com/yourusername/api-gateway/internal/config"
-	"github.com/yourusername/api-gateway/internal/proxy"
-	"github.com/yourusername/api-gateway/internal/router"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/yourusername/api-gateway/internal/config"
+	"github.com/yourusername/api-gateway/internal/loadbalancer"
+	"github.com/yourusername/api-gateway/internal/proxy"
+	"github.com/yourusername/api-gateway/internal/router"
 )
 
 func main() {
@@ -24,14 +26,17 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// 2. Build Upstream Map (Name -> List of URLs)
-	upstreamMap := make(map[string][]string)
+	// 2. Build Upstream Map (Name -> List of *loadbalancer.Upstream)
+	upstreamMap := make(map[string][]*loadbalancer.Upstream)
 	for _, group := range cfg.UpstreamGroups {
-		var urls []string
+		var ups []*loadbalancer.Upstream
 		for _, u := range group.Upstreams {
-			urls = append(urls, u.URL)
+			ups = append(ups, &loadbalancer.Upstream{
+				URL:     u.URL,
+				Healthy: true, // Default to true until health check is implemented
+			})
 		}
-		upstreamMap[group.Name] = urls
+		upstreamMap[group.Name] = ups
 	}
 
 	// 3. Initialize Router
@@ -51,14 +56,18 @@ func main() {
 		}
 
 		// Get upstreams
-		urls, exists := upstreamMap[route.Config.UpstreamGroup]
-		if !exists || len(urls) == 0 {
+		ups, exists := upstreamMap[route.Config.UpstreamGroup]
+		if !exists || len(ups) == 0 {
 			http.Error(w, "Bad Gateway: No Upstreams Available", http.StatusBadGateway)
 			return
 		}
 
-		// Pick first upstream (shortcut for milestone 1)
-		targetURL := urls[0]
+		// Select upstream using route's load balancer
+		target := route.LB.Next(ups)
+		if target == nil {
+			http.Error(w, "Bad Gateway: No Healthy Upstreams", http.StatusBadGateway)
+			return
+		}
 
 		var stripPrefix string
 		if route.Config.StripPrefix {
@@ -66,7 +75,7 @@ func main() {
 		}
 
 		// Proxy request
-		p.ServeHTTP(w, req, targetURL, stripPrefix)
+		p.ServeHTTP(w, req, target.URL, stripPrefix)
 	})
 
 	// 6. Start HTTP Server
