@@ -1,40 +1,10 @@
 package admin
 
-// server.go - Admin HTTP server
-//
-// Responsibilities:
-// - Listen on separate port from main gateway (default 9090 vs 8080)
-// - Serve admin REST API endpoints
-// - Serve static files for React admin UI
-// - Provide admin server health check endpoint
-// - Run independently from main gateway server
-//
-// Key Functions:
-// - NewServer(port int, gateway *Gateway) *Server: Create admin server
-// - Start() error: Start admin server in background goroutine
-// - Stop(ctx context.Context) error: Gracefully shutdown admin server
-//
-// Endpoints (defined in handlers.go):
-// - GET  /admin/api/stats
-// - GET  /admin/api/routes
-// - GET  /admin/api/upstreams
-// - GET  /admin/api/circuit-breakers
-// - POST /admin/api/circuit-breakers/:id/reset
-// - POST /admin/api/config/reload
-// - GET  /admin/health
-// - GET  / (React SPA)
-//
-// Inputs:
-// - Port configuration
-// - Gateway state (routes, upstreams, circuit breakers)
-//
-// Outputs:
-// - JSON responses for admin API
-// - Static files for React UI
-
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"time"
 )
 
 type Server struct {
@@ -42,22 +12,55 @@ type Server struct {
 	port       int
 }
 
+func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		
+		next(w, r)
+	}
+}
+
 // NewServer creates a new admin server
 func NewServer(port int, gateway interface{}) *Server {
-	// TODO: Implement admin server initialization
+	mux := http.NewServeMux()
+
+	// API Routes
+	mux.HandleFunc("/admin/api/stats", corsMiddleware(HandleStats))
+	mux.HandleFunc("/admin/api/routes", corsMiddleware(HandleRoutes))
+	mux.HandleFunc("/admin/api/upstreams", corsMiddleware(HandleUpstreams))
+	mux.HandleFunc("/admin/api/circuit-breakers", corsMiddleware(HandleCircuitBreakers))
+	mux.HandleFunc("/admin/api/circuit-breakers/reset", corsMiddleware(HandleCircuitBreakerReset))
+	mux.HandleFunc("/admin/api/config/reload", corsMiddleware(HandleConfigReload))
+	mux.HandleFunc("/admin/health", corsMiddleware(HandleHealth))
+
+	// Serve React app (assuming built files are in admin-ui/dist)
+	fs := http.FileServer(http.Dir("./admin-ui/dist"))
+	mux.Handle("/", fs)
+
 	return &Server{
 		port: port,
+		httpServer: &http.Server{
+			Addr:    fmt.Sprintf(":%d", port),
+			Handler: mux,
+		},
 	}
 }
 
 // Start begins serving the admin API and UI
 func (s *Server) Start() error {
-	// TODO: Implement admin server startup
-	return nil
+	return s.httpServer.ListenAndServe()
 }
 
 // Stop gracefully shuts down the admin server
 func (s *Server) Stop(ctx context.Context) error {
-	// TODO: Implement graceful shutdown
-	return nil
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	return s.httpServer.Shutdown(ctx)
 }
