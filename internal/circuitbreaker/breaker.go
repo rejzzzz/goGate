@@ -1,5 +1,7 @@
 package circuitbreaker
 
+import "time"
+
 // breaker.go - Circuit breaker state machine
 //
 // Responsibilities:

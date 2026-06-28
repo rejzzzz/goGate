@@ -1,4 +1,4 @@
-module github.com/yourusername/api-gateway/backends/service-c
+module github.com/rejzzzz/goGate/backends/service-c
 
 go 1.22
 

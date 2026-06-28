@@ -1,8 +1,8 @@
 package router
 
 import (
-	"github.com/yourusername/api-gateway/internal/config"
-	"github.com/yourusername/api-gateway/internal/loadbalancer"
+	"github.com/rejzzzz/goGate/internal/config"
+	"github.com/rejzzzz/goGate/internal/loadbalancer"
 )
 
 // Route is an internal representation of a configured route

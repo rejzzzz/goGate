@@ -1,15 +1,18 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
-	"github.com/yourusername/api-gateway/internal/config"
-	"github.com/yourusername/api-gateway/internal/loadbalancer"
-	"github.com/yourusername/api-gateway/internal/proxy"
-	"github.com/yourusername/api-gateway/internal/router"
+	"github.com/rejzzzz/goGate/internal/config"
+	"github.com/rejzzzz/goGate/internal/healthcheck"
+	"github.com/rejzzzz/goGate/internal/loadbalancer"
+	"github.com/rejzzzz/goGate/internal/proxy"
+	"github.com/rejzzzz/goGate/internal/router"
 )
 
 func main() {
@@ -26,28 +29,53 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// 2. Build Upstream Map (Name -> List of *loadbalancer.Upstream)
+	// 2. Initialize Health Checker
+	registry := healthcheck.NewRegistry()
+	checker := healthcheck.NewChecker(registry)
+	checker.Start(cfg.UpstreamGroups)
+
+	// 3. Build Upstream Map (Name -> List of *loadbalancer.Upstream)
 	upstreamMap := make(map[string][]*loadbalancer.Upstream)
 	for _, group := range cfg.UpstreamGroups {
 		var ups []*loadbalancer.Upstream
 		for _, u := range group.Upstreams {
-			ups = append(ups, &loadbalancer.Upstream{
-				URL:     u.URL,
-				Healthy: true, // Default to true until health check is implemented
-			})
+			ups = append(ups, loadbalancer.NewUpstream(u.URL, true))
 		}
 		upstreamMap[group.Name] = ups
 	}
 
-	// 3. Initialize Router
+	// Sync loop: Update load balancer upstreams from health registry without blocking requests
+	go func() {
+		ticker := time.NewTicker(1 * time.Second)
+		for range ticker.C {
+			healths := registry.GetAll()
+			for _, ups := range upstreamMap {
+				for _, u := range ups {
+					healthy, exists := healths[u.URL]
+					if !exists {
+						healthy = true
+					}
+					u.Healthy.Store(healthy)
+				}
+			}
+		}
+	}()
+
+	// 4. Initialize Router
 	r := router.New(cfg.Routes)
 	log.Printf("Loaded %d routes", len(cfg.Routes))
 
-	// 4. Initialize Proxy
+	// 5. Initialize Proxy
 	p := proxy.NewHTTPProxy(nil)
 
-	// 5. Build Root HTTP Handler
+	// 6. Build Root HTTP Handler
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/health" {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(registry.GetAll())
+			return
+		}
+
 		// Match Route
 		route, found := r.Match(req.URL.Path)
 		if !found {
@@ -78,7 +106,7 @@ func main() {
 		p.ServeHTTP(w, req, target.URL, stripPrefix)
 	})
 
-	// 6. Start HTTP Server
+	// 7. Start HTTP Server
 	port := cfg.Server.Port
 	if port == 0 {
 		port = 8080 // default
