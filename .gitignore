@@ -40,9 +40,16 @@ Thumbs.db
 dist/
 build/
 
-# Node modules (for admin-ui)
-admin-ui/node_modules/
-admin-ui/dist/
+# Node modules and build artifacts (for admin-ui)
+admin-ui/node_modules
+admin-ui/dist
+admin-ui/dist-ssr
+admin-ui/*.local
+admin-ui/npm-debug.log*
+admin-ui/yarn-debug.log*
+admin-ui/yarn-error.log*
+admin-ui/pnpm-debug.log*
+admin-ui/lerna-debug.log*
 
 # Benchmark results
 benchmarks/results/*.json
