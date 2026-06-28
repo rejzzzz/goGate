@@ -32,7 +32,6 @@ type Registry struct {
 
 // NewRegistry creates a new health status registry
 func NewRegistry() *Registry {
-	// TODO: Implement registry initialization
 	return &Registry{
 		health: make(map[string]bool),
 	}
@@ -40,6 +39,39 @@ func NewRegistry() *Registry {
 
 // IsHealthy returns the current health status of an upstream
 func (r *Registry) IsHealthy(upstreamURL string) bool {
-	// TODO: Implement thread-safe health status read
-	return true
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	healthy, exists := r.health[upstreamURL]
+	if !exists {
+		// Default to healthy if not checked yet
+		return true
+	}
+	return healthy
+}
+
+// SetHealthy marks an upstream as healthy
+func (r *Registry) SetHealthy(upstreamURL string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.health[upstreamURL] = true
+}
+
+// SetUnhealthy marks an upstream as unhealthy
+func (r *Registry) SetUnhealthy(upstreamURL string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.health[upstreamURL] = false
+}
+
+// GetAll returns a copy of the health map for admin APIs
+func (r *Registry) GetAll() map[string]bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	
+	copy := make(map[string]bool, len(r.health))
+	for k, v := range r.health {
+		copy[k] = v
+	}
+	return copy
 }

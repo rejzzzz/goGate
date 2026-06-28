@@ -29,6 +29,14 @@ package healthcheck
 // Outputs:
 // - Updates to health registry (healthy/unhealthy status per upstream)
 
+import (
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/rejzzzz/goGate/internal/config"
+)
+
 type Checker struct {
 	registry *Registry
 	stopChan chan struct{}
@@ -36,7 +44,6 @@ type Checker struct {
 
 // NewChecker creates a new health checker
 func NewChecker(registry *Registry) *Checker {
-	// TODO: Implement checker initialization
 	return &Checker{
 		registry: registry,
 		stopChan: make(chan struct{}),
@@ -44,6 +51,67 @@ func NewChecker(registry *Registry) *Checker {
 }
 
 // Start begins health checking for all upstream groups
-func (c *Checker) Start(upstreamGroups interface{}) {
-	// TODO: Implement background health checking
+func (c *Checker) Start(upstreamGroups []config.UpstreamGroup) {
+	for _, group := range upstreamGroups {
+		if group.HealthCheck.Interval <= 0 {
+			continue // Skip if health check interval is not configured
+		}
+
+		go c.checkGroup(group)
+	}
+}
+
+// Stop gracefully stops all background health checking
+func (c *Checker) Stop() {
+	close(c.stopChan)
+}
+
+func (c *Checker) checkGroup(group config.UpstreamGroup) {
+	ticker := time.NewTicker(group.HealthCheck.Interval)
+	defer ticker.Stop()
+
+	// Perform an initial check immediately
+	c.runCheck(group)
+
+	for {
+		select {
+		case <-ticker.C:
+			c.runCheck(group)
+		case <-c.stopChan:
+			return
+		}
+	}
+}
+
+func (c *Checker) runCheck(group config.UpstreamGroup) {
+	timeout := group.HealthCheck.Timeout
+	if timeout <= 0 {
+		timeout = 2 * time.Second
+	}
+
+	client := &http.Client{
+		Timeout: timeout,
+	}
+
+	for _, u := range group.Upstreams {
+		url := u.URL + group.HealthCheck.Path
+		
+		resp, err := client.Get(url)
+		if err == nil && resp.StatusCode == http.StatusOK {
+			c.registry.SetHealthy(u.URL)
+			if resp.Body != nil {
+				resp.Body.Close()
+			}
+		} else {
+			if err != nil {
+				log.Printf("[HealthCheck] %s is unhealthy: %v", u.URL, err)
+			} else {
+				log.Printf("[HealthCheck] %s is unhealthy: HTTP %d", u.URL, resp.StatusCode)
+				if resp.Body != nil {
+					resp.Body.Close()
+				}
+			}
+			c.registry.SetUnhealthy(u.URL)
+		}
+	}
 }
