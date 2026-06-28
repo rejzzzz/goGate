@@ -17,7 +17,7 @@ func (rr *RoundRobin) Next(upstreams []*Upstream) *Upstream {
 	// Filter for healthy upstreams
 	var healthy []*Upstream
 	for _, u := range upstreams {
-		if u.Healthy {
+		if u.Healthy.Load() {
 			healthy = append(healthy, u)
 		}
 	}
