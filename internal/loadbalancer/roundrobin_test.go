@@ -8,9 +8,9 @@ import (
 func TestRoundRobin_EvenDistribution(t *testing.T) {
 	lb := NewRoundRobin()
 	upstreams := []*Upstream{
-		{URL: "A", Healthy: true},
-		{URL: "B", Healthy: true},
-		{URL: "C", Healthy: true},
+		NewUpstream("A", true),
+		NewUpstream("B", true),
+		NewUpstream("C", true),
 	}
 
 	if u := lb.Next(upstreams); u == nil || u.URL != "A" {
@@ -30,9 +30,9 @@ func TestRoundRobin_EvenDistribution(t *testing.T) {
 func TestRoundRobin_SkipsUnhealthyUpstreams(t *testing.T) {
 	lb := NewRoundRobin()
 	upstreams := []*Upstream{
-		{URL: "A", Healthy: true},
-		{URL: "B", Healthy: false},
-		{URL: "C", Healthy: true},
+		NewUpstream("A", true),
+		NewUpstream("B", false),
+		NewUpstream("C", true),
 	}
 
 	if u := lb.Next(upstreams); u == nil || u.URL != "A" {
@@ -46,8 +46,8 @@ func TestRoundRobin_SkipsUnhealthyUpstreams(t *testing.T) {
 func TestRoundRobin_AllUnhealthy(t *testing.T) {
 	lb := NewRoundRobin()
 	upstreams := []*Upstream{
-		{URL: "A", Healthy: false},
-		{URL: "B", Healthy: false},
+		NewUpstream("A", false),
+		NewUpstream("B", false),
 	}
 
 	if u := lb.Next(upstreams); u != nil {
@@ -58,8 +58,8 @@ func TestRoundRobin_AllUnhealthy(t *testing.T) {
 func TestRoundRobin_Concurrent(t *testing.T) {
 	lb := NewRoundRobin()
 	upstreams := []*Upstream{
-		{URL: "A", Healthy: true},
-		{URL: "B", Healthy: true},
+		NewUpstream("A", true),
+		NewUpstream("B", true),
 	}
 
 	var wg sync.WaitGroup
