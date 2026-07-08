@@ -58,7 +58,7 @@ func (jsonCodec) Name() string                     { return "json" }
 
 var echoServiceDesc = grpc.ServiceDesc{
 	ServiceName: "echo.EchoService",
-	HandlerType: (*echoServer)(nil),
+	HandlerType: (*any)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "Echo",

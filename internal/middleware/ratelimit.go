@@ -26,18 +26,62 @@ package middleware
 // - HTTP 429 Too Many Requests if limit exceeded
 // - X-RateLimit-* headers on all responses
 
-import "net/http"
+import (
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"github.com/rejzzzz/goGate/internal/metrics"
+	"github.com/rejzzzz/goGate/internal/ratelimit"
+	"github.com/rejzzzz/goGate/internal/router"
+)
 
 // RateLimit returns a middleware that enforces rate limits
-func RateLimit(store interface{}) Middleware {
+func RateLimit(store *ratelimit.RedisStore) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// TODO: Extract client IP
-			// TODO: Get rate limit config from route context
-			// TODO: Check rate limit via Redis store
-			// TODO: Add X-RateLimit-* headers
-			// TODO: Return 429 if limit exceeded
-			
+			rt, ok := r.Context().Value(router.RouteContextKey).(*router.Route)
+			if !ok || rt == nil || rt.Config.RateLimit.RequestsPerSecond <= 0 {
+				// No rate limit configured for this route, skip
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			clientIP := getClientIP(r) // defined in logging.go
+
+			// If getClientIP contains port (e.g., 127.0.0.1:54321), strip it
+			if idx := strings.LastIndex(clientIP, ":"); idx != -1 {
+				// Simple check to not break IPv6 (which has multiple colons) unless it's bracketed
+				if !strings.Contains(clientIP, "]") {
+					clientIP = clientIP[:idx]
+				}
+			}
+
+			allowed, remaining, err := store.CheckRateLimit(
+				rt.Config.Path,
+				clientIP,
+				rt.Config.RateLimit.RequestsPerSecond,
+				rt.Config.RateLimit.Burst,
+			)
+
+			if err != nil {
+				// Log error, but fail open to not break traffic if Redis is down
+				fmt.Printf("Rate limit error (failing open): %v\n", err)
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			w.Header().Set("X-RateLimit-Limit", strconv.FormatFloat(rt.Config.RateLimit.RequestsPerSecond, 'f', 2, 64))
+			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
+
+			if !allowed {
+				w.Header().Set("Retry-After", "1")
+				metrics.RecordRateLimit(rt.Config.Path)
+				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+				return
+			}
+
 			next.ServeHTTP(w, r)
 		})
 	}

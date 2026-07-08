@@ -1,6 +1,10 @@
 package loadbalancer
 
-import "sync/atomic"
+import (
+	"sync/atomic"
+
+	"github.com/rejzzzz/goGate/internal/circuitbreaker"
+)
 
 // LoadBalancer selects an upstream from a list of healthy upstreams
 type LoadBalancer interface {
@@ -12,6 +16,7 @@ type Upstream struct {
 	URL               string
 	Healthy           atomic.Bool
 	ActiveConnections atomic.Int64 // Used by LeastConnections strategy
+	CircuitBreaker    *circuitbreaker.Breaker
 }
 
 // NewUpstream creates a new upstream with the given URL and initial health status.
