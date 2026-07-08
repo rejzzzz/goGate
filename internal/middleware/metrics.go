@@ -36,20 +36,20 @@ func Metrics() Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			
+
 			// Wrap response writer to capture status code
 			rw := newResponseWriter(w)
-			
+
 			next.ServeHTTP(rw, r)
-			
+
 			duration := time.Since(start).Seconds()
-			
+
 			// Extract route from context (set by RouteMatch middleware)
 			routePath := "unknown"
 			if rt, ok := r.Context().Value(router.RouteContextKey).(*router.Route); ok {
 				routePath = rt.Config.Path
 			}
-			
+
 			metrics.RecordRequest(
 				routePath,
 				r.Method,

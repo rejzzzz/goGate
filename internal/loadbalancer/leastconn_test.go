@@ -7,7 +7,7 @@ import (
 
 func TestLeastConnections_PicksLowest(t *testing.T) {
 	lc := NewLeastConnections()
-	
+
 	upstreams := []*Upstream{
 		NewUpstream("A", true),
 		NewUpstream("B", true),
@@ -26,7 +26,7 @@ func TestLeastConnections_PicksLowest(t *testing.T) {
 
 func TestLeastConnections_SkipsUnhealthy(t *testing.T) {
 	lc := NewLeastConnections()
-	
+
 	upstreams := []*Upstream{
 		NewUpstream("A", false),
 		NewUpstream("B", true),
@@ -45,7 +45,7 @@ func TestLeastConnections_SkipsUnhealthy(t *testing.T) {
 
 func TestLeastConnections_TieBreaking(t *testing.T) {
 	lc := NewLeastConnections()
-	
+
 	upstreams := []*Upstream{
 		NewUpstream("A", true),
 		NewUpstream("B", true),
@@ -61,7 +61,7 @@ func TestLeastConnections_TieBreaking(t *testing.T) {
 	if u := lc.Next(upstreams); u == nil || u.URL != "A" {
 		t.Errorf("Expected A, got %v", u)
 	}
-	
+
 	// Second pick should be C
 	if u := lc.Next(upstreams); u == nil || u.URL != "C" {
 		t.Errorf("Expected C, got %v", u)

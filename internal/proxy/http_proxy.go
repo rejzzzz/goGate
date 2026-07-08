@@ -48,7 +48,7 @@ func (p *HTTPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request, upstream *
 
 			// Add custom gateway headers
 			req.Header.Set("X-Gateway-Version", "1.0.0")
-			
+
 			// Clean up Host header to match target
 			req.Host = target.Host
 		},

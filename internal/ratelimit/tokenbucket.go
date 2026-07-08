@@ -52,7 +52,7 @@ func NewTokenBucket(rate float64, burst int) *TokenBucket {
 // Allow checks if a request is allowed under rate limit
 func (tb *TokenBucket) Allow(now time.Time) (allowed bool, remaining int) {
 	elapsed := now.Sub(tb.lastRefill).Seconds()
-	
+
 	// Add tokens based on time elapsed
 	tb.tokens += elapsed * tb.rate
 	if tb.tokens > float64(tb.burst) {
