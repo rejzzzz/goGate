@@ -11,6 +11,10 @@ type Route struct {
 	LB     loadbalancer.LoadBalancer
 }
 
+type contextKey string
+
+const RouteContextKey = contextKey("route")
+
 // NewRoute creates a router Route from a config Route
 func NewRoute(cfg config.Route) *Route {
 	return &Route{

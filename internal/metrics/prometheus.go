@@ -31,18 +31,131 @@ package metrics
 import "github.com/prometheus/client_golang/prometheus"
 
 var (
-	requestsTotal          *prometheus.CounterVec
-	requestDuration        *prometheus.HistogramVec
-	upstreamRequestDuration *prometheus.HistogramVec
-	// TODO: Define remaining metrics
+	requestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "gateway_requests_total",
+			Help: "Total requests handled",
+		},
+		[]string{"route", "method", "status_code"},
+	)
+
+	requestDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "gateway_request_duration_seconds",
+			Help:    "Request latency buckets",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0},
+		},
+		[]string{"route", "method"},
+	)
+
+	upstreamRequestDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "gateway_upstream_request_duration_seconds",
+			Help:    "Upstream call latency",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0},
+		},
+		[]string{"upstream", "route"},
+	)
+
+	rateLimitedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "gateway_rate_limited_total",
+			Help: "Requests rejected by rate limiter",
+		},
+		[]string{"route"},
+	)
+
+	circuitBreakerState = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "gateway_circuit_breaker_state",
+			Help: "0=closed, 1=open, 2=half-open",
+		},
+		[]string{"upstream"},
+	)
+
+	circuitBreakerTripsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "gateway_circuit_breaker_trips_total",
+			Help: "Total times circuit opened",
+		},
+		[]string{"upstream"},
+	)
+
+	upstreamHealth = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "gateway_upstream_health",
+			Help: "1=healthy, 0=unhealthy",
+		},
+		[]string{"upstream"},
+	)
+
+	activeConnections = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "gateway_active_connections",
+			Help: "Current active connections per upstream",
+		},
+		[]string{"upstream"},
+	)
+
+	redisOperationDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "gateway_redis_operation_duration_seconds",
+			Help:    "Redis latency for rate limiting ops",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1},
+		},
+		[]string{"operation"},
+	)
 )
 
 // Init initializes and registers all Prometheus metrics
 func Init() {
-	// TODO: Implement metric initialization and registration
+	prometheus.MustRegister(requestsTotal)
+	prometheus.MustRegister(requestDuration)
+	prometheus.MustRegister(upstreamRequestDuration)
+	prometheus.MustRegister(rateLimitedTotal)
+	prometheus.MustRegister(circuitBreakerState)
+	prometheus.MustRegister(circuitBreakerTripsTotal)
+	prometheus.MustRegister(upstreamHealth)
+	prometheus.MustRegister(activeConnections)
+	prometheus.MustRegister(redisOperationDuration)
 }
 
 // RecordRequest records a completed request
 func RecordRequest(route, method, statusCode string, duration float64) {
-	// TODO: Implement request metric recording
+	requestsTotal.WithLabelValues(route, method, statusCode).Inc()
+	requestDuration.WithLabelValues(route, method).Observe(duration)
+}
+
+// RecordRateLimit records a rate limited request
+func RecordRateLimit(route string) {
+	rateLimitedTotal.WithLabelValues(route).Inc()
+}
+
+// SetCircuitBreakerState sets the state of the circuit breaker for an upstream
+func SetCircuitBreakerState(upstream string, state int) {
+	circuitBreakerState.WithLabelValues(upstream).Set(float64(state))
+}
+
+// RecordCircuitBreakerTrip records a circuit breaker trip
+func RecordCircuitBreakerTrip(upstream string) {
+	circuitBreakerTripsTotal.WithLabelValues(upstream).Inc()
+}
+
+// SetUpstreamHealth sets the health of an upstream
+func SetUpstreamHealth(upstream string, healthy bool) {
+	val := 0.0
+	if healthy {
+		val = 1.0
+	}
+	upstreamHealth.WithLabelValues(upstream).Set(val)
+}
+
+// SetActiveConnections sets the active connection count for an upstream
+func SetActiveConnections(upstream string, connections int64) {
+	activeConnections.WithLabelValues(upstream).Set(float64(connections))
+}
+
+// RecordRedisOperation records the duration of a Redis operation
+func RecordRedisOperation(operation string, duration float64) {
+	redisOperationDuration.WithLabelValues(operation).Observe(duration)
 }

@@ -46,7 +46,7 @@ func Logging(logger *zap.Logger) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			
+
 			requestID, _ := r.Context().Value(RequestIDKey).(string)
 			clientIP := getClientIP(r)
 
@@ -57,12 +57,12 @@ func Logging(logger *zap.Logger) Middleware {
 				zap.String("client_ip", clientIP),
 				zap.String("user_agent", r.UserAgent()),
 			)
-			
+
 			// Wrap response writer to capture status code and bytes
 			rw := newResponseWriter(w)
-			
+
 			next.ServeHTTP(rw, r)
-			
+
 			duration := time.Since(start)
 			logger.Info("request completed",
 				zap.String("request_id", requestID),

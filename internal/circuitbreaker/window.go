@@ -31,9 +31,10 @@ import (
 )
 
 type Window struct {
-	mu      sync.Mutex
-	buckets []bucket
-	size    time.Duration
+	mu           sync.Mutex
+	buckets      []bucket
+	size         time.Duration
+	bucketLength time.Duration
 }
 
 type bucket struct {
@@ -44,6 +45,65 @@ type bucket struct {
 
 // NewWindow creates a new sliding window for failure tracking
 func NewWindow(windowSize time.Duration, bucketCount int) *Window {
-	// TODO: Implement sliding window initialization
-	return &Window{}
+	if bucketCount <= 0 {
+		bucketCount = 10
+	}
+	return &Window{
+		buckets:      make([]bucket, bucketCount),
+		size:         windowSize,
+		bucketLength: windowSize / time.Duration(bucketCount),
+	}
+}
+
+func (w *Window) getCurrentBucket() *bucket {
+	now := time.Now()
+	// Find index of current bucket
+	index := (now.UnixNano() / int64(w.bucketLength)) % int64(len(w.buckets))
+	b := &w.buckets[index]
+
+	// If bucket is too old, reset it
+	if now.Sub(b.timestamp) > w.size {
+		b.failures = 0
+		b.successes = 0
+		b.timestamp = now
+	}
+	return b
+}
+
+func (w *Window) RecordSuccess() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	b := w.getCurrentBucket()
+	b.successes++
+}
+
+func (w *Window) RecordFailure() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	b := w.getCurrentBucket()
+	b.failures++
+}
+
+func (w *Window) FailureCount() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	now := time.Now()
+	totalFailures := 0
+
+	for i := range w.buckets {
+		b := &w.buckets[i]
+		if now.Sub(b.timestamp) <= w.size {
+			totalFailures += b.failures
+		}
+	}
+	return totalFailures
+}
+
+func (w *Window) Reset() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for i := range w.buckets {
+		w.buckets[i] = bucket{}
+	}
 }

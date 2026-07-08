@@ -1,5 +1,7 @@
 package loadbalancer
 
+import "sync/atomic"
+
 // leastconn.go - Least-connections load balancing strategy
 //
 // Responsibilities:
@@ -13,12 +15,9 @@ package loadbalancer
 // Key Functions:
 // - NewLeastConnections() *LeastConnections: Create new least-connections LB
 // - Next(upstreams []*Upstream) *Upstream: Select upstream with lowest connection count
-// - Acquire(upstream *Upstream): Atomically increment connection count
-// - Release(upstream *Upstream): Atomically decrement connection count
 //
 // Implementation Details:
-// - Each Upstream has activeConnections int64 field
-// - Use atomic.AddInt64 for increment/decrement (lock-free)
+// - Each Upstream has ActiveConnections atomic.Int64 field
 // - Scan all healthy upstreams to find minimum connection count
 // - If tie, use round-robin counter to break tie
 //
@@ -31,12 +30,40 @@ type LeastConnections struct {
 
 // NewLeastConnections creates a new least-connections load balancer
 func NewLeastConnections() *LeastConnections {
-	// TODO: Implement least-connections initialization
 	return &LeastConnections{}
 }
 
 // Next selects the upstream with the fewest active connections
 func (lc *LeastConnections) Next(upstreams []*Upstream) *Upstream {
-	// TODO: Implement least-connections selection
-	return nil
+	var healthy []*Upstream
+	for _, u := range upstreams {
+		if u.Healthy.Load() {
+			healthy = append(healthy, u)
+		}
+	}
+
+	if len(healthy) == 0 {
+		return nil
+	}
+
+	var tied []*Upstream
+	minConns := int64(-1)
+
+	for _, u := range healthy {
+		conns := u.ActiveConnections.Load()
+		if minConns == -1 || conns < minConns {
+			minConns = conns
+			tied = []*Upstream{u}
+		} else if conns == minConns {
+			tied = append(tied, u)
+		}
+	}
+
+	if len(tied) == 1 {
+		return tied[0]
+	}
+
+	// Break ties using round-robin
+	idx := atomic.AddUint64(&lc.tieBreaker, 1)
+	return tied[(idx-1)%uint64(len(tied))]
 }

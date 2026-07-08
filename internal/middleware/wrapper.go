@@ -8,7 +8,7 @@ import (
 // that captures the status code and number of bytes written.
 type responseWriter struct {
 	http.ResponseWriter
-	statusCode int
+	statusCode   int
 	bytesWritten int
 }
 
@@ -31,4 +31,11 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	n, err := rw.ResponseWriter.Write(b)
 	rw.bytesWritten += n
 	return n, err
+}
+
+// Flush calls the underlying Flush if it's supported (required for gRPC/HTTP2).
+func (rw *responseWriter) Flush() {
+	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
