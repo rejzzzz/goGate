@@ -30,6 +30,14 @@ func (r *Router) Reload(configRoutes []config.Route) {
 	r.routes.Store(newRoutes)
 }
 
+// GetRoutes returns a snapshot of all active routes
+func (r *Router) GetRoutes() []*Route {
+	if routes, ok := r.routes.Load().([]*Route); ok {
+		return routes
+	}
+	return nil
+}
+
 // Match finds the route with the longest matching prefix for the given path
 func (r *Router) Match(path string) (*Route, bool) {
 	routes := r.routes.Load().([]*Route)

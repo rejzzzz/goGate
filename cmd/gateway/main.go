@@ -23,6 +23,7 @@ import (
 	"github.com/rejzzzz/goGate/internal/metrics"
 	"github.com/rejzzzz/goGate/internal/middleware"
 	"github.com/rejzzzz/goGate/internal/proxy"
+	"github.com/rejzzzz/goGate/internal/admin"
 	"github.com/rejzzzz/goGate/internal/ratelimit"
 	"github.com/rejzzzz/goGate/internal/router"
 	"go.uber.org/zap"
@@ -105,6 +106,8 @@ func main() {
 	r := router.New(cfg.Routes)
 	log.Printf("Loaded %d routes", len(cfg.Routes))
 
+	// 3. Initialize Admin Server
+	adminServer := admin.NewServer(8081, r, upstreamMap, registry) 
 	// 5. Initialize Proxies
 	p := proxy.NewHTTPProxy(nil)
 	grpcProxy := proxy.NewGRPCProxy()
@@ -199,6 +202,13 @@ func main() {
 		}
 	}()
 
+	go func() {
+		logger.Info("Admin API listening", zap.Int("port", 8081))
+		if err := adminServer.Start(); err != nil && err != http.ErrServerClosed {
+			logger.Error("Admin server error", zap.Error(err))
+		}
+	}()
+
 	// Wait for interrupt signal to gracefully shutdown the server with
 	// a timeout of 30 seconds.
 	quit := make(chan os.Signal, 1)
@@ -211,6 +221,10 @@ func main() {
 	
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Fatal("Server forced to shutdown", zap.Error(err))
+	}
+	
+	if err := adminServer.Stop(ctx); err != nil {
+		logger.Error("Admin server forced to shutdown", zap.Error(err))
 	}
 	
 	logger.Info("Closing Redis connection pool...")
