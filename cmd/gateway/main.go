@@ -16,6 +16,7 @@ import (
 	"golang.org/x/net/http2/h2c"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/rejzzzz/goGate/internal/admin"
 	"github.com/rejzzzz/goGate/internal/circuitbreaker"
 	"github.com/rejzzzz/goGate/internal/config"
 	"github.com/rejzzzz/goGate/internal/healthcheck"
@@ -42,7 +43,7 @@ func main() {
 	if envPath := os.Getenv("GATEWAY_CONFIG"); envPath != "" {
 		configPath = envPath
 	}
-	
+
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
@@ -105,6 +106,25 @@ func main() {
 	r := router.New(cfg.Routes)
 	log.Printf("Loaded %d routes", len(cfg.Routes))
 
+	// 3. Initialize Admin Server
+	reloadChan := make(chan struct{}, 1)
+	adminServer := admin.NewServer(8081, r, upstreamMap, registry, reloadChan)
+
+	// Hot Reload goroutine
+	go func() {
+		for range reloadChan {
+			logger.Info("Reloading configuration...")
+			newCfg, err := config.Load(configPath)
+			if err != nil {
+				logger.Error("Failed to hot-reload config", zap.Error(err))
+				continue
+			}
+
+			// Reload routes
+			r.Reload(newCfg.Routes)
+			logger.Info("Routes reloaded successfully", zap.Int("routeCount", len(newCfg.Routes)))
+		}
+	}()
 	// 5. Initialize Proxies
 	p := proxy.NewHTTPProxy(nil)
 	grpcProxy := proxy.NewGRPCProxy()
@@ -184,9 +204,9 @@ func main() {
 	if port == 0 {
 		port = 8080 // default
 	}
-	
+
 	addr := fmt.Sprintf(":%d", port)
-	
+
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: h2c.NewHandler(finalHandler, &http2.Server{}),
@@ -199,6 +219,13 @@ func main() {
 		}
 	}()
 
+	go func() {
+		logger.Info("Admin API listening", zap.Int("port", 8081))
+		if err := adminServer.Start(); err != nil && err != http.ErrServerClosed {
+			logger.Error("Admin server error", zap.Error(err))
+		}
+	}()
+
 	// Wait for interrupt signal to gracefully shutdown the server with
 	// a timeout of 30 seconds.
 	quit := make(chan os.Signal, 1)
@@ -208,11 +235,15 @@ func main() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	
+
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Fatal("Server forced to shutdown", zap.Error(err))
 	}
-	
+
+	if err := adminServer.Stop(ctx); err != nil {
+		logger.Error("Admin server forced to shutdown", zap.Error(err))
+	}
+
 	logger.Info("Closing Redis connection pool...")
 	if err := redisClient.Close(); err != nil {
 		logger.Error("Error closing Redis pool", zap.Error(err))

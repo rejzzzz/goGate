@@ -34,13 +34,13 @@ func Recovery(logger *zap.Logger) Middleware {
 			defer func() {
 				if err := recover(); err != nil {
 					requestID, _ := r.Context().Value(RequestIDKey).(string)
-					
+
 					logger.Error("panic recovered",
 						zap.String("request_id", requestID),
 						zap.Any("error", err),
 						zap.ByteString("stacktrace", debug.Stack()),
 					)
-					
+
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				}
 			}()

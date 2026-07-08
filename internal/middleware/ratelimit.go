@@ -49,7 +49,7 @@ func RateLimit(store *ratelimit.RedisStore) Middleware {
 			}
 
 			clientIP := getClientIP(r) // defined in logging.go
-			
+
 			// If getClientIP contains port (e.g., 127.0.0.1:54321), strip it
 			if idx := strings.LastIndex(clientIP, ":"); idx != -1 {
 				// Simple check to not break IPv6 (which has multiple colons) unless it's bracketed
@@ -59,9 +59,9 @@ func RateLimit(store *ratelimit.RedisStore) Middleware {
 			}
 
 			allowed, remaining, err := store.CheckRateLimit(
-				rt.Config.Path, 
-				clientIP, 
-				rt.Config.RateLimit.RequestsPerSecond, 
+				rt.Config.Path,
+				clientIP,
+				rt.Config.RateLimit.RequestsPerSecond,
 				rt.Config.RateLimit.Burst,
 			)
 
