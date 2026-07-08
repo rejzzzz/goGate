@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -8,15 +9,27 @@ import (
 	"os"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+	"github.com/rejzzzz/goGate/internal/circuitbreaker"
 	"github.com/rejzzzz/goGate/internal/config"
 	"github.com/rejzzzz/goGate/internal/healthcheck"
 	"github.com/rejzzzz/goGate/internal/loadbalancer"
+	"github.com/rejzzzz/goGate/internal/metrics"
+	"github.com/rejzzzz/goGate/internal/middleware"
 	"github.com/rejzzzz/goGate/internal/proxy"
+	"github.com/rejzzzz/goGate/internal/ratelimit"
 	"github.com/rejzzzz/goGate/internal/router"
+	"go.uber.org/zap"
 )
 
 func main() {
-	log.Println("Starting Distributed API Gateway...")
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
+
+	logger.Info("Starting Distributed API Gateway...")
+
+	// Initialize Metrics
+	metrics.Init()
 
 	// 1. Load Configuration
 	configPath := "configs/gateway.yaml"
@@ -34,12 +47,33 @@ func main() {
 	checker := healthcheck.NewChecker(registry)
 	checker.Start(cfg.UpstreamGroups)
 
+	// Initialize Redis for Rate Limiting
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:         cfg.Redis.Addr,
+		Password:     cfg.Redis.Password,
+		DB:           cfg.Redis.DB,
+		PoolSize:     cfg.Redis.PoolSize,
+		MinIdleConns: cfg.Redis.MinIdleConns,
+		MaxRetries:   cfg.Redis.MaxRetries,
+	})
+	redisStore := ratelimit.NewRedisStore(redisClient)
+	if err := redisStore.LoadScript(context.Background()); err != nil {
+		logger.Warn("Failed to preload Redis Lua script", zap.Error(err))
+	}
+
 	// 3. Build Upstream Map (Name -> List of *loadbalancer.Upstream)
 	upstreamMap := make(map[string][]*loadbalancer.Upstream)
 	for _, group := range cfg.UpstreamGroups {
 		var ups []*loadbalancer.Upstream
+		cbConfig := &circuitbreaker.Config{
+			FailureThreshold: group.CircuitBreaker.FailureThreshold,
+			SuccessThreshold: group.CircuitBreaker.SuccessThreshold,
+			Timeout:          group.CircuitBreaker.Timeout,
+		}
 		for _, u := range group.Upstreams {
-			ups = append(ups, loadbalancer.NewUpstream(u.URL, true))
+			up := loadbalancer.NewUpstream(u.URL, true)
+			up.CircuitBreaker = circuitbreaker.NewBreaker(cbConfig)
+			ups = append(ups, up)
 		}
 		upstreamMap[group.Name] = ups
 	}
@@ -76,9 +110,14 @@ func main() {
 			return
 		}
 
-		// Match Route
-		route, found := r.Match(req.URL.Path)
-		if !found {
+		if req.URL.Path == "/metrics" {
+			metrics.Handler().ServeHTTP(w, req)
+			return
+		}
+
+		// Match Route from context (set by RouteMatch middleware)
+		route, ok := req.Context().Value(router.RouteContextKey).(*router.Route)
+		if !ok || route == nil {
 			http.Error(w, "Not Found: No matching route", http.StatusNotFound)
 			return
 		}
@@ -97,6 +136,12 @@ func main() {
 			return
 		}
 
+		if target.CircuitBreaker != nil && !target.CircuitBreaker.Allow() {
+			w.Header().Set("X-Circuit-Breaker", "open")
+			http.Error(w, "Service Unavailable: Circuit Breaker Open", http.StatusServiceUnavailable)
+			return
+		}
+
 		target.ActiveConnections.Add(1)
 		defer target.ActiveConnections.Add(-1)
 
@@ -106,8 +151,19 @@ func main() {
 		}
 
 		// Proxy request
-		p.ServeHTTP(w, req, target.URL, stripPrefix)
+		p.ServeHTTP(w, req, target, stripPrefix)
 	})
+
+	// Wrap with Middleware Chain
+	finalHandler := middleware.Chain(
+		handler,
+		middleware.Recovery(logger),
+		middleware.RequestID(),
+		middleware.Logging(logger),
+		middleware.RouteMatch(r),
+		middleware.Metrics(),
+		middleware.RateLimit(redisStore),
+	)
 
 	// 7. Start HTTP Server
 	port := cfg.Server.Port
@@ -116,9 +172,9 @@ func main() {
 	}
 	
 	addr := fmt.Sprintf(":%d", port)
-	log.Printf("Gateway listening on %s", addr)
+	logger.Info("Gateway listening", zap.String("addr", addr))
 	
-	if err := http.ListenAndServe(addr, handler); err != nil {
-		log.Fatalf("Server error: %v", err)
+	if err := http.ListenAndServe(addr, finalHandler); err != nil {
+		logger.Fatal("Server error", zap.Error(err))
 	}
 }

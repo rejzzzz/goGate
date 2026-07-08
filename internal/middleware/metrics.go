@@ -24,7 +24,11 @@ package middleware
 
 import (
 	"net/http"
+	"strconv"
 	"time"
+
+	"github.com/rejzzzz/goGate/internal/metrics"
+	"github.com/rejzzzz/goGate/internal/router"
 )
 
 // Metrics returns a middleware that records Prometheus metrics
@@ -34,13 +38,24 @@ func Metrics() Middleware {
 			start := time.Now()
 			
 			// Wrap response writer to capture status code
-			// TODO: Implement response writer wrapper
+			rw := newResponseWriter(w)
 			
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(rw, r)
 			
 			duration := time.Since(start).Seconds()
-			// TODO: Record metrics using prometheus package
-			_ = duration
+			
+			// Extract route from context (set by RouteMatch middleware)
+			routePath := "unknown"
+			if rt, ok := r.Context().Value(router.RouteContextKey).(*router.Route); ok {
+				routePath = rt.Config.Path
+			}
+			
+			metrics.RecordRequest(
+				routePath,
+				r.Method,
+				strconv.Itoa(rw.statusCode),
+				duration,
+			)
 		})
 	}
 }

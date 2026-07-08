@@ -33,23 +33,37 @@ package ratelimit
 import "time"
 
 type TokenBucket struct {
-	rate   float64 // Tokens per second
-	burst  int     // Max bucket size
-	tokens float64
+	rate       float64 // Tokens per second
+	burst      int     // Max bucket size
+	tokens     float64
 	lastRefill time.Time
 }
 
 // NewTokenBucket creates a new token bucket
 func NewTokenBucket(rate float64, burst int) *TokenBucket {
-	// TODO: Implement token bucket initialization
 	return &TokenBucket{
-		rate:  rate,
-		burst: burst,
+		rate:       rate,
+		burst:      burst,
+		tokens:     float64(burst),
+		lastRefill: time.Now(),
 	}
 }
 
 // Allow checks if a request is allowed under rate limit
 func (tb *TokenBucket) Allow(now time.Time) (allowed bool, remaining int) {
-	// TODO: Implement token bucket algorithm
-	return true, 0
+	elapsed := now.Sub(tb.lastRefill).Seconds()
+	
+	// Add tokens based on time elapsed
+	tb.tokens += elapsed * tb.rate
+	if tb.tokens > float64(tb.burst) {
+		tb.tokens = float64(tb.burst)
+	}
+	tb.lastRefill = now
+
+	if tb.tokens >= 1.0 {
+		tb.tokens -= 1.0
+		return true, int(tb.tokens)
+	}
+
+	return false, 0
 }
