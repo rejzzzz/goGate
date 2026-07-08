@@ -32,3 +32,10 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	rw.bytesWritten += n
 	return n, err
 }
+
+// Flush calls the underlying Flush if it's supported (required for gRPC/HTTP2).
+func (rw *responseWriter) Flush() {
+	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}

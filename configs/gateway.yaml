@@ -31,7 +31,7 @@ routes:
           burst: 10
       load_balancer: least-connections
 
-    - path: /api/v1/grpc
+    - path: /echo.EchoService/
       type: grpc
       upstream_group: grpc-service
       load_balancer: round-robin
@@ -64,7 +64,7 @@ upstream_groups:
 
     - name: grpc-service
       upstreams:
-          - url: service-c:9000
+          - url: localhost:9000
       type: grpc
 
 metrics:

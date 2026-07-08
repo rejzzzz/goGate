@@ -7,7 +7,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"strings"
+	"syscall"
 	"time"
+
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/rejzzzz/goGate/internal/circuitbreaker"
@@ -99,8 +105,9 @@ func main() {
 	r := router.New(cfg.Routes)
 	log.Printf("Loaded %d routes", len(cfg.Routes))
 
-	// 5. Initialize Proxy
+	// 5. Initialize Proxies
 	p := proxy.NewHTTPProxy(nil)
+	grpcProxy := proxy.NewGRPCProxy()
 
 	// 6. Build Root HTTP Handler
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -151,7 +158,14 @@ func main() {
 		}
 
 		// Proxy request
-		p.ServeHTTP(w, req, target, stripPrefix)
+		if strings.HasPrefix(req.Header.Get("Content-Type"), "application/grpc") {
+			// Inject target for grpc director
+			ctx := context.WithValue(req.Context(), proxy.TargetContextKey, target)
+			req = req.WithContext(ctx)
+			grpcProxy.Server.ServeHTTP(w, req)
+		} else {
+			p.ServeHTTP(w, req, target, stripPrefix)
+		}
 	})
 
 	// Wrap with Middleware Chain
@@ -165,16 +179,44 @@ func main() {
 		middleware.RateLimit(redisStore),
 	)
 
-	// 7. Start HTTP Server
+	// 7. Start HTTP Server with h2c for cleartext HTTP/2 (gRPC)
 	port := cfg.Server.Port
 	if port == 0 {
 		port = 8080 // default
 	}
 	
 	addr := fmt.Sprintf(":%d", port)
-	logger.Info("Gateway listening", zap.String("addr", addr))
 	
-	if err := http.ListenAndServe(addr, finalHandler); err != nil {
-		logger.Fatal("Server error", zap.Error(err))
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: h2c.NewHandler(finalHandler, &http2.Server{}),
 	}
+
+	go func() {
+		logger.Info("Gateway listening", zap.String("addr", addr))
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatal("Server error", zap.Error(err))
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server with
+	// a timeout of 30 seconds.
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	logger.Info("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	
+	if err := srv.Shutdown(ctx); err != nil {
+		logger.Fatal("Server forced to shutdown", zap.Error(err))
+	}
+	
+	logger.Info("Closing Redis connection pool...")
+	if err := redisClient.Close(); err != nil {
+		logger.Error("Error closing Redis pool", zap.Error(err))
+	}
+
+	logger.Info("Server gracefully stopped")
 }
