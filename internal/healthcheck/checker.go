@@ -95,7 +95,7 @@ func (c *Checker) runCheck(group config.UpstreamGroup) {
 
 	for _, u := range group.Upstreams {
 		url := u.URL + group.HealthCheck.Path
-		
+
 		resp, err := client.Get(url)
 		if err == nil && resp.StatusCode == http.StatusOK {
 			c.registry.SetHealthy(u.URL)

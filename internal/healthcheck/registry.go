@@ -68,7 +68,7 @@ func (r *Registry) SetUnhealthy(upstreamURL string) {
 func (r *Registry) GetAll() map[string]bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	copy := make(map[string]bool, len(r.health))
 	for k, v := range r.health {
 		copy[k] = v

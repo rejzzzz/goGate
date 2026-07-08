@@ -23,9 +23,9 @@ func main() {
 			},
 		},
 	}
-	
+
 	msg := []byte(`{"message": "hello proxy"}`)
-	
+
 	// Create gRPC frame: 1 byte compress flag (0), 4 bytes length
 	frame := make([]byte, 5+len(msg))
 	frame[0] = 0 // uncompressed
@@ -37,13 +37,13 @@ func main() {
 		panic(err)
 	}
 	req.Header.Set("Content-Type", "application/grpc")
-	
+
 	resp, err := client.Do(req)
 	if err != nil {
 		panic(err)
 	}
 	defer resp.Body.Close()
-	
+
 	fmt.Printf("Status: %s\n", resp.Status)
 	body, _ := io.ReadAll(resp.Body)
 	if len(body) > 5 {

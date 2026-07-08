@@ -107,7 +107,7 @@ func (s *Server) getActiveCircuitBreakerCount() int {
 func (s *Server) HandleRoutes(w http.ResponseWriter, r *http.Request) {
 	routes := s.router.GetRoutes()
 	var result []map[string]interface{}
-	
+
 	if routes == nil {
 		routes = make([]*router.Route, 0)
 	}
@@ -135,7 +135,7 @@ func (s *Server) HandleUpstreams(w http.ResponseWriter, r *http.Request) {
 			if healthy, ok := healths[u.URL]; ok && healthy {
 				status = "healthy"
 			}
-			
+
 			upsData = append(upsData, map[string]interface{}{
 				"url":               u.URL,
 				"status":            status,
@@ -148,12 +148,12 @@ func (s *Server) HandleUpstreams(w http.ResponseWriter, r *http.Request) {
 			"upstreams": upsData,
 		})
 	}
-	
+
 	// Ensure we don't return nil
 	if result == nil {
 		result = make([]map[string]interface{}, 0)
 	}
-	
+
 	sendJSON(w, result)
 }
 
@@ -171,11 +171,11 @@ func (s *Server) HandleCircuitBreakers(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	
+
 	if result == nil {
 		result = make([]map[string]interface{}, 0)
 	}
-	
+
 	sendJSON(w, result)
 }
 
@@ -184,12 +184,40 @@ func (s *Server) HandleCircuitBreakerReset(w http.ResponseWriter, r *http.Reques
 		HandleOptions(w, r)
 		return
 	}
-	sendJSON(w, map[string]string{"status": "ok", "message": "Circuit breaker reset not fully supported natively yet"})
+
+	count := 0
+	for _, upsList := range s.upstreamMap {
+		for _, u := range upsList {
+			if u.CircuitBreaker != nil {
+				u.CircuitBreaker.Reset()
+				count++
+			}
+		}
+	}
+
+	sendJSON(w, map[string]interface{}{
+		"status":  "ok",
+		"message": "Circuit breakers reset",
+		"count":   count,
+	})
 }
 
 func (s *Server) HandleConfigReload(w http.ResponseWriter, r *http.Request) {
-	// In a real scenario, this would trigger a channel that main.go listens to
-	sendJSON(w, map[string]string{"status": "ok", "message": "Config reload triggered"})
+	if r.Method == http.MethodOptions {
+		HandleOptions(w, r)
+		return
+	}
+
+	if s.reloadChan != nil {
+		select {
+		case s.reloadChan <- struct{}{}:
+			sendJSON(w, map[string]string{"status": "ok", "message": "Config reload triggered"})
+		default:
+			sendJSON(w, map[string]string{"status": "error", "message": "Config reload already in progress"})
+		}
+	} else {
+		sendJSON(w, map[string]string{"status": "error", "message": "Reload mechanism not configured"})
+	}
 }
 
 func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {

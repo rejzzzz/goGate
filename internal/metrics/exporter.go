@@ -14,8 +14,8 @@ package metrics
 // Outputs: Prometheus metrics in text format
 
 import (
-	"net/http"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"net/http"
 )
 
 // Handler returns the HTTP handler for the /metrics endpoint

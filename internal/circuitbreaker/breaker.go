@@ -47,12 +47,12 @@ const (
 )
 
 type Breaker struct {
-	mu                  sync.Mutex
-	state               State
-	window              *Window
+	mu                   sync.Mutex
+	state                State
+	window               *Window
 	consecutiveSuccesses int
-	lastStateChange     time.Time
-	config              *Config
+	lastStateChange      time.Time
+	config               *Config
 }
 
 type Config struct {
@@ -94,7 +94,7 @@ func (b *Breaker) Allow() bool {
 		}
 		return false
 	case StateHalfOpen:
-		// We only allow one request to probe, if it's already in HalfOpen, 
+		// We only allow one request to probe, if it's already in HalfOpen,
 		// another request comes in, we reject it until the probe resolves.
 		return false
 	}

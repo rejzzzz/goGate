@@ -21,7 +21,7 @@ func TestHTTPProxy_CircuitBreakerIntegration(t *testing.T) {
 	// 2. Setup the Upstream and Circuit Breaker
 	up := loadbalancer.NewUpstream(backend.URL, true)
 	up.CircuitBreaker = circuitbreaker.NewBreaker(&circuitbreaker.Config{
-		FailureThreshold: 2,               // Trip after 2 failures
+		FailureThreshold: 2, // Trip after 2 failures
 		Timeout:          1 * time.Second,
 		WindowSize:       10 * time.Second,
 		BucketCount:      10,
