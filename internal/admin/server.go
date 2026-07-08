@@ -5,11 +5,20 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/rejzzzz/goGate/internal/healthcheck"
+	"github.com/rejzzzz/goGate/internal/loadbalancer"
+	"github.com/rejzzzz/goGate/internal/router"
 )
 
 type Server struct {
 	httpServer *http.Server
 	port       int
+
+	router      *router.Router
+	upstreamMap map[string][]*loadbalancer.Upstream
+	registry    *healthcheck.Registry
+	reloadChan  chan<- struct{}
 }
 
 func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -17,40 +26,47 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		
+
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		
+
 		next(w, r)
 	}
 }
 
 // NewServer creates a new admin server
-func NewServer(port int, gateway interface{}) *Server {
+func NewServer(port int, r *router.Router, uMap map[string][]*loadbalancer.Upstream, reg *healthcheck.Registry, reloadChan chan<- struct{}) *Server {
+	s := &Server{
+		port:        port,
+		router:      r,
+		upstreamMap: uMap,
+		registry:    reg,
+		reloadChan:  reloadChan,
+	}
+
 	mux := http.NewServeMux()
 
 	// API Routes
-	mux.HandleFunc("/admin/api/stats", corsMiddleware(HandleStats))
-	mux.HandleFunc("/admin/api/routes", corsMiddleware(HandleRoutes))
-	mux.HandleFunc("/admin/api/upstreams", corsMiddleware(HandleUpstreams))
-	mux.HandleFunc("/admin/api/circuit-breakers", corsMiddleware(HandleCircuitBreakers))
-	mux.HandleFunc("/admin/api/circuit-breakers/reset", corsMiddleware(HandleCircuitBreakerReset))
-	mux.HandleFunc("/admin/api/config/reload", corsMiddleware(HandleConfigReload))
-	mux.HandleFunc("/admin/health", corsMiddleware(HandleHealth))
+	mux.HandleFunc("/admin/api/stats", corsMiddleware(s.HandleStats))
+	mux.HandleFunc("/admin/api/routes", corsMiddleware(s.HandleRoutes))
+	mux.HandleFunc("/admin/api/upstreams", corsMiddleware(s.HandleUpstreams))
+	mux.HandleFunc("/admin/api/circuit-breakers", corsMiddleware(s.HandleCircuitBreakers))
+	mux.HandleFunc("/admin/api/circuit-breakers/reset", corsMiddleware(s.HandleCircuitBreakerReset))
+	mux.HandleFunc("/admin/api/config/reload", corsMiddleware(s.HandleConfigReload))
+	mux.HandleFunc("/admin/health", corsMiddleware(s.HandleHealth))
 
 	// Serve React app (assuming built files are in admin-ui/dist)
 	fs := http.FileServer(http.Dir("./admin-ui/dist"))
 	mux.Handle("/", fs)
 
-	return &Server{
-		port: port,
-		httpServer: &http.Server{
-			Addr:    fmt.Sprintf(":%d", port),
-			Handler: mux,
-		},
+	s.httpServer = &http.Server{
+		Addr:    fmt.Sprintf(":%d", port),
+		Handler: mux,
 	}
+
+	return s
 }
 
 // Start begins serving the admin API and UI

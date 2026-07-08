@@ -8,7 +8,7 @@ import (
 // that captures the status code and number of bytes written.
 type responseWriter struct {
 	http.ResponseWriter
-	statusCode int
+	statusCode   int
 	bytesWritten int
 }
 

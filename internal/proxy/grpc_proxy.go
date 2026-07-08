@@ -68,7 +68,7 @@ func (p *GRPCProxy) getClientConn(addr string) (*grpc.ClientConn, error) {
 	}
 
 	// Dial the upstream gRPC server
-	newConn, err := grpc.NewClient(addr, 
+	newConn, err := grpc.NewClient(addr,
 		grpc.WithDefaultCallOptions(grpc.CallCustomCodec(proxy.Codec().(grpc.Codec))),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)

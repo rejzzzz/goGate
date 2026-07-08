@@ -116,7 +116,7 @@ func TestBreaker_SlidingWindow(t *testing.T) {
 	cb.RecordFailure()
 	// Wait for window to slide past the first failure
 	time.Sleep(60 * time.Millisecond)
-	
+
 	cb.RecordFailure()
 
 	// Should still be closed because the first failure expired
