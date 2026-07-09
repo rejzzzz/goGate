@@ -81,15 +81,26 @@ func main() {
 			Timeout:          group.CircuitBreaker.Timeout,
 		}
 
-		if group.Discovery != nil && group.Discovery.Provider == "consul" {
-			provider, err := discovery.NewConsulProvider(group.Discovery.Address)
+		if group.Discovery != nil {
+			var provider discovery.Provider
+			var err error
+
+			switch group.Discovery.Provider {
+			case "consul":
+				provider, err = discovery.NewConsulProvider(group.Discovery.Address)
+			case "etcd":
+				provider, err = discovery.NewEtcdProvider(group.Discovery.Address)
+			default:
+				err = fmt.Errorf("unsupported discovery provider: %s", group.Discovery.Provider)
+			}
+
 			if err != nil {
-				logger.Error("Failed to initialize consul provider", zap.Error(err), zap.String("group", group.Name))
+				logger.Error("Failed to initialize discovery provider", zap.Error(err), zap.String("group", group.Name))
 			} else {
 				// Initial fetch
 				instances, err := provider.GetInstances(group.Discovery.ServiceName)
 				if err != nil {
-					logger.Error("Failed initial fetch from consul", zap.Error(err), zap.String("group", group.Name))
+					logger.Error("Failed initial fetch from discovery provider", zap.Error(err), zap.String("group", group.Name))
 				} else {
 					for _, u := range instances {
 						up := loadbalancer.NewUpstream(u, true)
