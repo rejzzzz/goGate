@@ -55,6 +55,14 @@ type UpstreamGroup struct {
 	HealthCheck    HealthCheckConfig    `mapstructure:"health_check"`
 	CircuitBreaker CircuitBreakerConfig `mapstructure:"circuit_breaker"`
 	Type           string               `mapstructure:"type"` // "grpc" for gRPC upstream groups
+	Discovery      *DiscoveryConfig     `mapstructure:"discovery"`
+}
+
+// DiscoveryConfig controls dynamic upstream discovery.
+type DiscoveryConfig struct {
+	Provider    string `mapstructure:"provider"`
+	ServiceName string `mapstructure:"service_name"`
+	Address     string `mapstructure:"address"`
 }
 
 // Upstream is a single backend URL.

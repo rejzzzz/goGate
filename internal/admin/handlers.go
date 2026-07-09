@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rejzzzz/goGate/internal/loadbalancer"
 	"github.com/rejzzzz/goGate/internal/router"
 )
 
@@ -94,7 +95,8 @@ func stateString(state int) string {
 
 func (s *Server) getActiveCircuitBreakerCount() int {
 	count := 0
-	for _, upsList := range s.upstreamMap {
+	uMap, _ := s.upstreamMap.Load().(map[string][]*loadbalancer.Upstream)
+	for _, upsList := range uMap {
 		for _, u := range upsList {
 			if u.CircuitBreaker != nil && int(u.CircuitBreaker.State()) != 0 {
 				count++
@@ -126,9 +128,11 @@ func (s *Server) HandleRoutes(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) HandleUpstreams(w http.ResponseWriter, r *http.Request) {
 	healths := s.registry.GetAll()
-	var result []map[string]interface{}
+	var response []map[string]interface{}
 
-	for groupName, upsList := range s.upstreamMap {
+	uMap, _ := s.upstreamMap.Load().(map[string][]*loadbalancer.Upstream)
+
+	for groupName, upsList := range uMap {
 		var upsData []map[string]interface{}
 		for _, u := range upsList {
 			status := "degraded" // default if not explicitly healthy
@@ -143,23 +147,24 @@ func (s *Server) HandleUpstreams(w http.ResponseWriter, r *http.Request) {
 				"latencyMs":         5, // Placeholder, usually measured during health checks
 			})
 		}
-		result = append(result, map[string]interface{}{
+		response = append(response, map[string]interface{}{
 			"name":      groupName,
 			"upstreams": upsData,
 		})
 	}
 
 	// Ensure we don't return nil
-	if result == nil {
-		result = make([]map[string]interface{}, 0)
+	if response == nil {
+		response = make([]map[string]interface{}, 0)
 	}
 
-	sendJSON(w, result)
+	sendJSON(w, response)
 }
 
 func (s *Server) HandleCircuitBreakers(w http.ResponseWriter, r *http.Request) {
 	var result []map[string]interface{}
-	for _, upsList := range s.upstreamMap {
+	uMap, _ := s.upstreamMap.Load().(map[string][]*loadbalancer.Upstream)
+	for _, upsList := range uMap {
 		for _, u := range upsList {
 			if u.CircuitBreaker != nil {
 				result = append(result, map[string]interface{}{
@@ -186,7 +191,8 @@ func (s *Server) HandleCircuitBreakerReset(w http.ResponseWriter, r *http.Reques
 	}
 
 	count := 0
-	for _, upsList := range s.upstreamMap {
+	uMap, _ := s.upstreamMap.Load().(map[string][]*loadbalancer.Upstream)
+	for _, upsList := range uMap {
 		for _, u := range upsList {
 			if u.CircuitBreaker != nil {
 				u.CircuitBreaker.Reset()

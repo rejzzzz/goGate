@@ -141,6 +141,12 @@ func validateRoute(r Route, groupNames map[string]struct{}) error {
 }
 
 func validateUpstreamGroup(g UpstreamGroup) error {
+	if g.Name == "" {
+		return fmt.Errorf("upstream group is missing a name")
+	}
+	if (g.Upstreams == nil || len(g.Upstreams) == 0) && g.Discovery == nil {
+		return fmt.Errorf("upstream group %s has no upstreams and no discovery config", g.Name)
+	}
 	for _, u := range g.Upstreams {
 		parsed, err := url.Parse(u.URL)
 		if err != nil {
