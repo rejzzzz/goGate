@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/rejzzzz/goGate/internal/admin"
 	"github.com/rejzzzz/goGate/internal/circuitbreaker"
 	"github.com/rejzzzz/goGate/internal/config"
+	"github.com/rejzzzz/goGate/internal/discovery"
 	"github.com/rejzzzz/goGate/internal/healthcheck"
 	"github.com/rejzzzz/goGate/internal/loadbalancer"
 	"github.com/rejzzzz/goGate/internal/metrics"
@@ -69,7 +71,8 @@ func main() {
 	}
 
 	// 3. Build Upstream Map (Name -> List of *loadbalancer.Upstream)
-	upstreamMap := make(map[string][]*loadbalancer.Upstream)
+	initialUpstreamMap := make(map[string][]*loadbalancer.Upstream)
+	var upstreamMap atomic.Value
 	for _, group := range cfg.UpstreamGroups {
 		var ups []*loadbalancer.Upstream
 		cbConfig := &circuitbreaker.Config{
@@ -77,20 +80,75 @@ func main() {
 			SuccessThreshold: group.CircuitBreaker.SuccessThreshold,
 			Timeout:          group.CircuitBreaker.Timeout,
 		}
-		for _, u := range group.Upstreams {
-			up := loadbalancer.NewUpstream(u.URL, true)
-			up.CircuitBreaker = circuitbreaker.NewBreaker(cbConfig)
-			ups = append(ups, up)
+
+		if group.Discovery != nil && group.Discovery.Provider == "consul" {
+			provider, err := discovery.NewConsulProvider(group.Discovery.Address)
+			if err != nil {
+				logger.Error("Failed to initialize consul provider", zap.Error(err), zap.String("group", group.Name))
+			} else {
+				// Initial fetch
+				instances, err := provider.GetInstances(group.Discovery.ServiceName)
+				if err != nil {
+					logger.Error("Failed initial fetch from consul", zap.Error(err), zap.String("group", group.Name))
+				} else {
+					for _, u := range instances {
+						up := loadbalancer.NewUpstream(u, true)
+						up.CircuitBreaker = circuitbreaker.NewBreaker(cbConfig)
+						ups = append(ups, up)
+					}
+					logger.Info("Discovered initial upstreams", zap.String("group", group.Name), zap.Int("count", len(ups)))
+				}
+
+				// Start watching for updates
+				updateCh := make(chan []string)
+				go provider.Watch(context.Background(), group.Discovery.ServiceName, updateCh)
+				go func(gName string, cb *circuitbreaker.Config) {
+					for newInstances := range updateCh {
+						logger.Info("Discovery update received", zap.String("group", gName), zap.Int("count", len(newInstances)))
+
+						// Read current map safely
+						currentMap, _ := upstreamMap.Load().(map[string][]*loadbalancer.Upstream)
+
+						// Create a deep copy of the map
+						newMap := make(map[string][]*loadbalancer.Upstream)
+						for k, v := range currentMap {
+							newMap[k] = v
+						}
+
+						// Build new upstream list for this group
+						var newUps []*loadbalancer.Upstream
+						for _, u := range newInstances {
+							up := loadbalancer.NewUpstream(u, true)
+							up.CircuitBreaker = circuitbreaker.NewBreaker(cb)
+							newUps = append(newUps, up)
+						}
+
+						newMap[gName] = newUps
+						upstreamMap.Store(newMap)
+					}
+				}(group.Name, cbConfig)
+			}
+		} else {
+			// Static upstreams
+			for _, u := range group.Upstreams {
+				up := loadbalancer.NewUpstream(u.URL, true)
+				up.CircuitBreaker = circuitbreaker.NewBreaker(cbConfig)
+				ups = append(ups, up)
+			}
 		}
-		upstreamMap[group.Name] = ups
+
+		initialUpstreamMap[group.Name] = ups
 	}
+
+	upstreamMap.Store(initialUpstreamMap)
 
 	// Sync loop: Update load balancer upstreams from health registry without blocking requests
 	go func() {
 		ticker := time.NewTicker(1 * time.Second)
 		for range ticker.C {
 			healths := registry.GetAll()
-			for _, ups := range upstreamMap {
+			currentMap, _ := upstreamMap.Load().(map[string][]*loadbalancer.Upstream)
+			for _, ups := range currentMap {
 				for _, u := range ups {
 					healthy, exists := healths[u.URL]
 					if !exists {
@@ -108,7 +166,7 @@ func main() {
 
 	// 3. Initialize Admin Server
 	reloadChan := make(chan struct{}, 1)
-	adminServer := admin.NewServer(8081, r, upstreamMap, registry, reloadChan)
+	adminServer := admin.NewServer(8081, r, &upstreamMap, registry, reloadChan)
 
 	// Hot Reload goroutine
 	go func() {
@@ -150,7 +208,8 @@ func main() {
 		}
 
 		// Get upstreams
-		ups, exists := upstreamMap[route.Config.UpstreamGroup]
+		currentMap, _ := upstreamMap.Load().(map[string][]*loadbalancer.Upstream)
+		ups, exists := currentMap[route.Config.UpstreamGroup]
 		if !exists || len(ups) == 0 {
 			http.Error(w, "Bad Gateway: No Upstreams Available", http.StatusBadGateway)
 			return
