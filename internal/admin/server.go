@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/rejzzzz/goGate/internal/healthcheck"
-	"github.com/rejzzzz/goGate/internal/loadbalancer"
 	"github.com/rejzzzz/goGate/internal/router"
 )
 
@@ -16,7 +16,7 @@ type Server struct {
 	port       int
 
 	router      *router.Router
-	upstreamMap map[string][]*loadbalancer.Upstream
+	upstreamMap *atomic.Value
 	registry    *healthcheck.Registry
 	reloadChan  chan<- struct{}
 }
@@ -37,7 +37,7 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // NewServer creates a new admin server
-func NewServer(port int, r *router.Router, uMap map[string][]*loadbalancer.Upstream, reg *healthcheck.Registry, reloadChan chan<- struct{}) *Server {
+func NewServer(port int, r *router.Router, uMap *atomic.Value, reg *healthcheck.Registry, reloadChan chan<- struct{}) *Server {
 	s := &Server{
 		port:        port,
 		router:      r,
