@@ -1,47 +1,34 @@
 import { useEffect, useState } from 'react';
 import { fetchRoutes } from '../api/gateway';
 import type { RouteConfig } from '../api/types';
+import RouteCard from '../components/RouteCard';
 
-export default function GatewayRoutes() {
+export default function Routes() {
   const [routes, setRoutes] = useState<RouteConfig[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchRoutes().then(setRoutes).catch(console.error);
+    fetchRoutes()
+      .then(setRoutes)
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
+
+  if (loading) return <div className="loader">Loading route configurations...</div>;
 
   return (
     <div>
-      <div className="page-header">
-        <h2>Active Routes</h2>
+      <div className="page-header flex-between">
+        <h2>Configured Routes</h2>
+        <span className="badge neutral" style={{ background: 'var(--surface-color)' }}>
+          {routes.length} Active Routes
+        </span>
       </div>
       
-      <div className="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Path Prefix</th>
-              <th>Upstream Group</th>
-              <th>Load Balancer</th>
-              <th>Rate Limit (RPS)</th>
-              <th>Strip Prefix</th>
-            </tr>
-          </thead>
-          <tbody>
-            {routes.length === 0 ? (
-              <tr><td colSpan={5} className="loader">Loading routes...</td></tr>
-            ) : (
-              routes.map(r => (
-                <tr key={r.path}>
-                  <td><strong>{r.path}</strong></td>
-                  <td>{r.upstreamGroup}</td>
-                  <td>{r.lbStrategy}</td>
-                  <td>{r.rateLimit.rps} (Burst: {r.rateLimit.burst})</td>
-                  <td>{r.stripPrefix ? 'Yes' : 'No'}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div className="card-grid">
+        {routes.map((route, idx) => (
+          <RouteCard key={idx} route={route} />
+        ))}
       </div>
     </div>
   );

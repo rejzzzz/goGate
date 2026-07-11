@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/rejzzzz/goGate/internal/config"
@@ -28,7 +29,8 @@ func TestHandleRoutes(t *testing.T) {
 	}
 
 	r := router.New(cfgRoutes)
-	uMap := make(map[string][]*loadbalancer.Upstream)
+	uMap := &atomic.Value{}
+	uMap.Store(make(map[string][]*loadbalancer.Upstream))
 	reg := healthcheck.NewRegistry()
 
 	srv := NewServer(8081, r, uMap, reg, nil)
@@ -72,7 +74,8 @@ func TestHandleRoutes(t *testing.T) {
 
 func TestHandleConfigReload(t *testing.T) {
 	r := router.New(nil)
-	uMap := make(map[string][]*loadbalancer.Upstream)
+	uMap := &atomic.Value{}
+	uMap.Store(make(map[string][]*loadbalancer.Upstream))
 	reg := healthcheck.NewRegistry()
 
 	// Create channel with buffer 1 so it doesn't block
