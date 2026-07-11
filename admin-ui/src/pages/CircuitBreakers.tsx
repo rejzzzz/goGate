@@ -1,35 +1,32 @@
 import { useEffect, useState } from 'react';
 import { fetchCircuitBreakers, resetCircuitBreaker } from '../api/gateway';
 import type { CircuitBreakerState } from '../api/types';
+import CircuitBreakerBadge from '../components/CircuitBreakerBadge';
 
 export default function CircuitBreakers() {
   const [breakers, setBreakers] = useState<CircuitBreakerState[]>([]);
-
-  const load = () => {
-    fetchCircuitBreakers().then(setBreakers).catch(console.error);
-  };
+  const [loading, setLoading] = useState(true);
+  const [resetting, setResetting] = useState<string | null>(null);
 
   useEffect(() => {
-    load();
+    loadBreakers();
   }, []);
 
-  const handleReset = async (url: string) => {
-    try {
-      await resetCircuitBreaker(url);
-      load(); // refresh after reset
-    } catch (e) {
-      console.error(e);
-    }
+  const loadBreakers = () => {
+    fetchCircuitBreakers()
+      .then(setBreakers)
+      .catch(console.error)
+      .finally(() => setLoading(false));
   };
 
-  const getStatusBadge = (state: string) => {
-    switch (state) {
-      case 'closed': return <span className="badge success">Closed</span>;
-      case 'half-open': return <span className="badge warning">Half-Open</span>;
-      case 'open': return <span className="badge danger">Open</span>;
-      default: return <span className="badge neutral">{state}</span>;
-    }
+  const handleReset = async (url: string) => {
+    setResetting(url);
+    await resetCircuitBreaker(url);
+    await loadBreakers();
+    setResetting(null);
   };
+
+  if (loading) return <div className="loader">Analyzing circuit breaker states...</div>;
 
   return (
     <div>
@@ -37,37 +34,49 @@ export default function CircuitBreakers() {
         <h2>Circuit Breakers</h2>
       </div>
       
-      <div className="table-container">
-        <table>
+      <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr>
-              <th>Upstream URL</th>
-              <th>State</th>
-              <th>Failures</th>
-              <th>Last Trip Time</th>
-              <th>Actions</th>
+              <th style={{ padding: '1.25rem 1.5rem', background: 'rgba(0,0,0,0.2)', color: 'var(--text-secondary)', fontWeight: 600, borderBottom: '1px solid var(--border-color)' }}>Upstream URL</th>
+              <th style={{ padding: '1.25rem 1.5rem', background: 'rgba(0,0,0,0.2)', color: 'var(--text-secondary)', fontWeight: 600, borderBottom: '1px solid var(--border-color)' }}>State</th>
+              <th style={{ padding: '1.25rem 1.5rem', background: 'rgba(0,0,0,0.2)', color: 'var(--text-secondary)', fontWeight: 600, borderBottom: '1px solid var(--border-color)' }}>Failures</th>
+              <th style={{ padding: '1.25rem 1.5rem', background: 'rgba(0,0,0,0.2)', color: 'var(--text-secondary)', fontWeight: 600, borderBottom: '1px solid var(--border-color)' }}>Last Trip</th>
+              <th style={{ padding: '1.25rem 1.5rem', background: 'rgba(0,0,0,0.2)', color: 'var(--text-secondary)', fontWeight: 600, borderBottom: '1px solid var(--border-color)' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {breakers.length === 0 ? (
-              <tr><td colSpan={5} className="loader">Loading circuit breakers...</td></tr>
-            ) : (
-              breakers.map(b => (
-                <tr key={b.upstreamUrl}>
-                  <td><strong>{b.upstreamUrl}</strong></td>
-                  <td>{getStatusBadge(b.state)}</td>
-                  <td>{b.failureCount}</td>
-                  <td>{b.lastTripTime ? new Date(b.lastTripTime).toLocaleString() : '-'}</td>
-                  <td>
-                    {b.state !== 'closed' && (
-                      <button className="btn" onClick={() => handleReset(b.upstreamUrl)}>
-                        Force Reset
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
+            {breakers.map((cb, idx) => (
+              <tr key={idx} style={{ transition: 'background 0.2s' }}>
+                <td style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)', fontWeight: 500, fontFamily: 'monospace' }}>
+                  {cb.upstreamUrl.replace('http://', '')}
+                </td>
+                <td style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)' }}>
+                  <CircuitBreakerBadge state={cb.state} />
+                </td>
+                <td style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)', color: cb.failureCount > 0 ? 'var(--warning-color)' : 'var(--text-secondary)' }}>
+                  {cb.failureCount}
+                </td>
+                <td style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                  {cb.lastTripTime ? new Date(cb.lastTripTime).toLocaleTimeString() : '-'}
+                </td>
+                <td style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)' }}>
+                  <button 
+                    className="btn" 
+                    onClick={() => handleReset(cb.upstreamUrl)}
+                    disabled={cb.state === 'closed' || resetting === cb.upstreamUrl}
+                    style={{ 
+                      opacity: cb.state === 'closed' ? 0.3 : 1, 
+                      cursor: cb.state === 'closed' ? 'not-allowed' : 'pointer',
+                      border: '1px solid var(--border-color)',
+                      background: 'rgba(255,255,255,0.05)'
+                    }}
+                  >
+                    {resetting === cb.upstreamUrl ? 'Resetting...' : 'Force Close'}
+                  </button>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

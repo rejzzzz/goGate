@@ -1,58 +1,35 @@
 import { useEffect, useState } from 'react';
 import { fetchUpstreams } from '../api/gateway';
-import type { UpstreamGroup } from '../api/types';
+import type { UpstreamGroup as UpstreamGroupType } from '../api/types';
+import UpstreamStatus from '../components/UpstreamStatus';
 
 export default function Upstreams() {
-  const [groups, setGroups] = useState<UpstreamGroup[]>([]);
+  const [groups, setGroups] = useState<UpstreamGroupType[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchUpstreams().then(setGroups).catch(console.error);
+    fetchUpstreams()
+      .then(setGroups)
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'healthy': return <span className="badge success">Healthy</span>;
-      case 'degraded': return <span className="badge warning">Degraded</span>;
-      case 'unhealthy': return <span className="badge danger">Unhealthy</span>;
-      default: return <span className="badge neutral">{status}</span>;
-    }
-  };
+  if (loading) return <div className="loader">Discovering upstreams...</div>;
 
   return (
     <div>
       <div className="page-header">
         <h2>Upstream Health</h2>
+        <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+          Real-time status of all configured backend service groups.
+        </p>
       </div>
       
-      {groups.length === 0 ? <div className="loader">Loading upstreams...</div> : (
-        groups.map(group => (
-          <div key={group.name} style={{ marginBottom: '2rem' }}>
-            <h3 style={{ marginBottom: '1rem' }}>Group: {group.name}</h3>
-            <div className="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th>URL</th>
-                    <th>Status</th>
-                    <th>Active Connections</th>
-                    <th>Latency (ms)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {group.upstreams.map(u => (
-                    <tr key={u.url}>
-                      <td>{u.url}</td>
-                      <td>{getStatusBadge(u.status)}</td>
-                      <td>{u.activeConnections}</td>
-                      <td>{u.latencyMs}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ))
-      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        {groups.map((group, idx) => (
+          <UpstreamStatus key={idx} group={group} />
+        ))}
+      </div>
     </div>
   );
 }
