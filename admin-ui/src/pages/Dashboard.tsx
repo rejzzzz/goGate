@@ -41,12 +41,33 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  const [reloading, setReloading] = useState(false);
+
+  const handleReload = async () => {
+    setReloading(true);
+    try {
+      const { reloadConfig } = await import('../api/gateway');
+      await reloadConfig();
+      alert('Config reloaded successfully!');
+    } catch (err) {
+      alert('Failed to reload config');
+    }
+    setReloading(false);
+  };
+
   if (!stats) return <div className="loader">Initializing Gateway Dashboard...</div>;
 
   return (
     <div>
-      <div className="page-header">
+      <div className="page-header flex-between">
         <h2>Gateway Overview</h2>
+        <button 
+          className="btn primary" 
+          onClick={handleReload}
+          disabled={reloading}
+        >
+          {reloading ? 'Reloading...' : 'Reload Config'}
+        </button>
       </div>
       
       <div className="card-grid">

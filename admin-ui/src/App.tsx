@@ -1,9 +1,10 @@
 import { Routes, Route, NavLink } from 'react-router-dom';
-import { Activity, GitMerge, Server, ShieldAlert } from 'lucide-react';
+import { Activity, GitMerge, Server, ShieldAlert, Book } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import GatewayRoutes from './pages/Routes';
 import Upstreams from './pages/Upstreams';
 import CircuitBreakers from './pages/CircuitBreakers';
+import Docs from './pages/Docs';
 
 function App() {
   return (
@@ -23,6 +24,9 @@ function App() {
           <NavLink to="/circuit-breakers" className={({ isActive }) => isActive ? 'active' : ''}>
             <ShieldAlert size={18} /> Circuit Breakers
           </NavLink>
+          <NavLink to="/docs" className={({ isActive }) => isActive ? 'active' : ''}>
+            <Book size={18} /> Documentation
+          </NavLink>
         </div>
       </nav>
       
@@ -32,6 +36,7 @@ function App() {
           <Route path="/routes" element={<GatewayRoutes />} />
           <Route path="/upstreams" element={<Upstreams />} />
           <Route path="/circuit-breakers" element={<CircuitBreakers />} />
+          <Route path="/docs" element={<Docs />} />
         </Routes>
       </main>
     </div>
