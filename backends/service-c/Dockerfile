@@ -4,9 +4,9 @@ WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o service-c .
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o service-c .
 
-FROM alpine:latest
+FROM scratch
 WORKDIR /app
 COPY --from=builder /build/service-c .
 EXPOSE 9000

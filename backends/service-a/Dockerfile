@@ -2,9 +2,9 @@ FROM golang:1.22-alpine AS builder
 
 WORKDIR /build
 COPY . .
-RUN go build -o service-a .
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o service-a .
 
-FROM alpine:latest
+FROM scratch
 WORKDIR /app
 COPY --from=builder /build/service-a .
 EXPOSE 8081
