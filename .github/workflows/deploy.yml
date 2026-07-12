@@ -12,17 +12,36 @@ jobs:
 
     steps:
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.0
+        uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 30m
           script: |
+            set -e
+
+            PROJECT_DIR=~/distributed_api_gateway
+
             # Navigate to the project directory
-            cd /opt/distributed_api_gateway || cd ~/distributed_api_gateway
-            
-            # Pull the latest changes from the main branch
-            git pull origin main
-            
-            # Rebuild and restart the Docker containers in detached mode
-            docker compose up -d --build
+            cd "$PROJECT_DIR"
+
+            # Pull the latest changes
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Create .env from example if it doesn't exist
+            if [ ! -f .env ]; then
+              cp .env.example .env
+              echo "Created .env from .env.example"
+            fi
+
+            # Build and deploy with Docker Compose
+            docker compose up -d --build --remove-orphans
+
+            # Wait for services to start
+            echo "Waiting for services to start..."
+            sleep 10
+
+            # Print service status
+            docker compose ps

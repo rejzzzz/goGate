@@ -2,7 +2,7 @@ FROM golang:1.22-alpine AS builder
 
 WORKDIR /build
 COPY . .
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o service-a .
+RUN go mod init service-a && CGO_ENABLED=0 go build -ldflags="-s -w" -o service-a .
 
 FROM scratch
 WORKDIR /app
