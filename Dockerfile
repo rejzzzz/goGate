@@ -1,5 +1,17 @@
-# Build stage
-FROM golang:1.22-alpine AS builder
+# 1. UI Build Stage
+FROM node:18-alpine AS ui-builder
+
+WORKDIR /app/admin-ui
+# Copy package files first for better caching
+COPY admin-ui/package.json admin-ui/pnpm-lock.yaml* ./
+RUN npm install -g pnpm && pnpm install
+
+# Copy the rest of the UI source code and build it
+COPY admin-ui/ ./
+RUN pnpm run build
+
+# 2. Go Backend Build Stage
+FROM golang:1.22-alpine AS go-builder
 
 WORKDIR /build
 
@@ -18,7 +30,7 @@ COPY . .
 # Build the binary
 RUN go build -o gateway ./cmd/gateway
 
-# Final stage
+# 3. Final Stage
 FROM alpine:latest
 
 WORKDIR /app
@@ -26,11 +38,14 @@ WORKDIR /app
 # Install runtime dependencies
 RUN apk add --no-cache ca-certificates
 
-# Copy binary from builder
-COPY --from=builder /build/gateway .
+# Copy binary from go-builder
+COPY --from=go-builder /build/gateway .
 
 # Copy config files
 COPY configs/gateway.yaml ./configs/
+
+# Copy the built Admin UI from the ui-builder stage
+COPY --from=ui-builder /app/admin-ui/dist ./admin-ui/dist
 
 # Expose ports
 EXPOSE 8080 9090
