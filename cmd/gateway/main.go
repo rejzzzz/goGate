@@ -269,6 +269,7 @@ func main() {
 		middleware.RequestID(),
 		middleware.Logging(logger),
 		middleware.RouteMatch(r),
+		middleware.Auth(cfg.Auth),
 		middleware.Metrics(),
 		middleware.RateLimit(redisStore),
 	)

@@ -6,10 +6,17 @@ import "time"
 type Config struct {
 	Server         ServerConfig    `mapstructure:"server"`
 	Redis          RedisConfig     `mapstructure:"redis"`
+	Auth           AuthConfig      `mapstructure:"auth"`
 	Routes         []Route         `mapstructure:"routes"`
 	UpstreamGroups []UpstreamGroup `mapstructure:"upstream_groups"`
 	Metrics        MetricsConfig   `mapstructure:"metrics"`
 	Logging        LoggingConfig   `mapstructure:"logging"`
+}
+
+// AuthConfig holds global API Key authentication settings.
+type AuthConfig struct {
+	Enabled bool     `mapstructure:"enabled"`
+	APIKeys []string `mapstructure:"api_keys"`
 }
 
 // ServerConfig holds HTTP server settings.
@@ -40,6 +47,7 @@ type Route struct {
 	RateLimit     RateLimitConfig `mapstructure:"rate_limit"`
 	LoadBalancer  string          `mapstructure:"load_balancer"`
 	Type          string          `mapstructure:"type"` // "grpc" for gRPC routes, empty for HTTP
+	AuthRequired  *bool           `mapstructure:"auth_required"`
 }
 
 // RateLimitConfig holds per-route rate limiting parameters.
