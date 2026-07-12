@@ -177,7 +177,11 @@ func main() {
 
 	// 3. Initialize Admin Server
 	reloadChan := make(chan struct{}, 1)
-	adminServer := admin.NewServer(8081, r, &upstreamMap, registry, reloadChan)
+	adminPort := cfg.Server.AdminPort
+	if adminPort == 0 {
+		adminPort = 9090
+	}
+	adminServer := admin.NewServer(adminPort, r, &upstreamMap, registry, reloadChan)
 
 	// Hot Reload goroutine
 	go func() {
@@ -290,7 +294,7 @@ func main() {
 	}()
 
 	go func() {
-		logger.Info("Admin API listening", zap.Int("port", 8081))
+		logger.Info("Admin API listening", zap.Int("port", adminPort))
 		if err := adminServer.Start(); err != nil && err != http.ErrServerClosed {
 			logger.Error("Admin server error", zap.Error(err))
 		}
