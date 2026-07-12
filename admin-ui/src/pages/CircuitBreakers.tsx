@@ -35,42 +35,37 @@ export default function CircuitBreakers() {
       </div>
       
       <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
           <thead>
             <tr>
-              <th style={{ padding: '1.25rem 1.5rem', background: 'rgba(0,0,0,0.2)', color: 'var(--text-secondary)', fontWeight: 600, borderBottom: '1px solid var(--border-color)' }}>Upstream URL</th>
-              <th style={{ padding: '1.25rem 1.5rem', background: 'rgba(0,0,0,0.2)', color: 'var(--text-secondary)', fontWeight: 600, borderBottom: '1px solid var(--border-color)' }}>State</th>
-              <th style={{ padding: '1.25rem 1.5rem', background: 'rgba(0,0,0,0.2)', color: 'var(--text-secondary)', fontWeight: 600, borderBottom: '1px solid var(--border-color)' }}>Failures</th>
-              <th style={{ padding: '1.25rem 1.5rem', background: 'rgba(0,0,0,0.2)', color: 'var(--text-secondary)', fontWeight: 600, borderBottom: '1px solid var(--border-color)' }}>Last Trip</th>
-              <th style={{ padding: '1.25rem 1.5rem', background: 'rgba(0,0,0,0.2)', color: 'var(--text-secondary)', fontWeight: 600, borderBottom: '1px solid var(--border-color)' }}>Actions</th>
+              <th style={{ padding: '1rem', background: 'var(--bg-color)', color: 'var(--text-secondary)', fontWeight: 500, borderBottom: '1px solid var(--border-color)' }}>Upstream URL</th>
+              <th style={{ padding: '1rem', background: 'var(--bg-color)', color: 'var(--text-secondary)', fontWeight: 500, borderBottom: '1px solid var(--border-color)' }}>State</th>
+              <th style={{ padding: '1rem', background: 'var(--bg-color)', color: 'var(--text-secondary)', fontWeight: 500, borderBottom: '1px solid var(--border-color)' }}>Failures</th>
+              <th style={{ padding: '1rem', background: 'var(--bg-color)', color: 'var(--text-secondary)', fontWeight: 500, borderBottom: '1px solid var(--border-color)' }}>Last Trip</th>
+              <th style={{ padding: '1rem', background: 'var(--bg-color)', color: 'var(--text-secondary)', fontWeight: 500, borderBottom: '1px solid var(--border-color)' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {breakers.map((cb, idx) => (
-              <tr key={idx} style={{ transition: 'background 0.2s' }}>
-                <td style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)', fontWeight: 500, fontFamily: 'monospace' }}>
+              <tr key={idx} style={{ transition: 'background 0.15s' }}>
+                <td style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', fontWeight: 500, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
                   {cb.upstreamUrl.replace('http://', '')}
                 </td>
-                <td style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)' }}>
+                <td style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>
                   <CircuitBreakerBadge state={cb.state} />
                 </td>
-                <td style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)', color: cb.failureCount > 0 ? 'var(--warning-color)' : 'var(--text-secondary)' }}>
+                <td style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', color: cb.failureCount > 0 ? 'var(--warning-color)' : 'var(--text-secondary)' }}>
                   {cb.failureCount}
                 </td>
-                <td style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                <td style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>
                   {cb.lastTripTime ? new Date(cb.lastTripTime).toLocaleTimeString() : '-'}
                 </td>
-                <td style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)' }}>
+                <td style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>
                   <button 
                     className="btn" 
                     onClick={() => handleReset(cb.upstreamUrl)}
                     disabled={cb.state === 'closed' || resetting === cb.upstreamUrl}
-                    style={{ 
-                      opacity: cb.state === 'closed' ? 0.3 : 1, 
-                      cursor: cb.state === 'closed' ? 'not-allowed' : 'pointer',
-                      border: '1px solid var(--border-color)',
-                      background: 'rgba(255,255,255,0.05)'
-                    }}
+                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.75rem' }}
                   >
                     {resetting === cb.upstreamUrl ? 'Resetting...' : 'Force Close'}
                   </button>
