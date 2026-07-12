@@ -14,6 +14,12 @@ redis:
     min_idle_conns: 10
     max_retries: 3
 
+auth:
+    enabled: true
+    api_keys:
+        - "sk_test_1234567890"
+        - "sk_live_0987654321"
+
 routes:
     - path: /api/v1/users
       strip_prefix: true
