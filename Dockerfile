@@ -1,5 +1,5 @@
 # 1. UI Build Stage
-FROM node:18-alpine AS ui-builder
+FROM node:22-alpine AS ui-builder
 
 WORKDIR /app/admin-ui
 # Copy package files first for better caching
