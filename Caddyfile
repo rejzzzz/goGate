@@ -1,0 +1,7 @@
+api.gogate.rejwanul.dev {
+    reverse_proxy gateway:8080
+}
+
+gogate.rejwanul.dev {
+    reverse_proxy gateway:9090
+}
