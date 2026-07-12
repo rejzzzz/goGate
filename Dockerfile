@@ -11,7 +11,7 @@ COPY admin-ui/ ./
 RUN pnpm run build
 
 # 2. Go Backend Build Stage
-FROM golang:1.22-alpine AS go-builder
+FROM golang:1.26-alpine AS go-builder
 
 WORKDIR /build
 
