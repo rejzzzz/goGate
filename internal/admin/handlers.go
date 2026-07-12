@@ -136,7 +136,7 @@ func (s *Server) HandleUpstreams(w http.ResponseWriter, r *http.Request) {
 		var upsData []map[string]interface{}
 		for _, u := range upsList {
 			status := "degraded" // default if not explicitly healthy
-			if healthy, ok := healths[u.URL]; ok && healthy {
+			if healthy, ok := healths[u.URL]; (ok && healthy) || (!ok && u.Healthy.Load()) {
 				status = "healthy"
 			}
 
