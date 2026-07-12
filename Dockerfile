@@ -28,7 +28,7 @@ RUN go mod download
 COPY . .
 
 # Build the binary
-RUN go build -o gateway ./cmd/gateway
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o gateway ./cmd/gateway
 
 # 3. Final Stage
 FROM alpine:latest
