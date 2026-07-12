@@ -39,22 +39,22 @@ run-gateway: build
 	./bin/gateway
 
 run-backends:
-	docker compose -f deploy/docker-compose.yml up service-a service-b service-c service-d
+	docker compose up service-a service-b service-c service-d
 
 run-infra:
-	docker compose -f deploy/docker-compose.yml up redis prometheus grafana
+	docker compose up redis prometheus grafana
 
 run-all:
-	docker compose -f deploy/docker-compose.yml up
+	docker compose up
 
 docker-build:
 	docker build -t api-gateway:latest .
 
 docker-up:
-	docker compose -f deploy/docker-compose.yml up -d
+	docker compose up -d
 
 docker-down:
-	docker compose -f deploy/docker-compose.yml down
+	docker compose down
 
 bench-basic:
 	k6 run benchmarks/k6/basic_load.js
