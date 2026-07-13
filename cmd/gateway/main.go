@@ -271,7 +271,7 @@ func main() {
 		middleware.RouteMatch(r),
 		middleware.Auth(cfg.Auth),
 		middleware.Metrics(),
-		middleware.RateLimit(redisStore),
+		middleware.RateLimit(redisStore, *cfg),
 	)
 
 	// 7. Start HTTP Server with h2c for cleartext HTTP/2 (gRPC)

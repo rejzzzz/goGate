@@ -4,13 +4,16 @@ import "time"
 
 // Config is the root configuration loaded from gateway.yaml.
 type Config struct {
-	Server         ServerConfig    `mapstructure:"server"`
-	Redis          RedisConfig     `mapstructure:"redis"`
-	Auth           AuthConfig      `mapstructure:"auth"`
-	Routes         []Route         `mapstructure:"routes"`
-	UpstreamGroups []UpstreamGroup `mapstructure:"upstream_groups"`
-	Metrics        MetricsConfig   `mapstructure:"metrics"`
-	Logging        LoggingConfig   `mapstructure:"logging"`
+	Server                 ServerConfig    `mapstructure:"server"`
+	Redis                  RedisConfig     `mapstructure:"redis"`
+	Auth                   AuthConfig      `mapstructure:"auth"`
+	Routes                 []Route         `mapstructure:"routes"`
+	UpstreamGroups         []UpstreamGroup `mapstructure:"upstream_groups"`
+	Metrics                MetricsConfig   `mapstructure:"metrics"`
+	Logging                LoggingConfig   `mapstructure:"logging"`
+	GlobalRateLimit        RateLimitConfig `mapstructure:"global_rate_limit"`
+	RateLimitBypassHeader  string          `mapstructure:"rate_limit_bypass_header"`
+	RateLimitBypassToken   string          `mapstructure:"rate_limit_bypass_token"`
 }
 
 // AuthConfig holds global API Key authentication settings.
