@@ -90,6 +90,16 @@ func (rs *RedisStore) LoadScript(ctx context.Context) error {
 // CheckRateLimit checks if a request is allowed under rate limit
 func (rs *RedisStore) CheckRateLimit(route, clientIP string, rate float64, burst int) (bool, int, error) {
 	key := fmt.Sprintf("ratelimit:%s:%s", route, clientIP)
+	return rs.checkRateLimitByKey(key, rate, burst)
+}
+
+// CheckGlobalRateLimit checks if a request is allowed under the global rate limit
+func (rs *RedisStore) CheckGlobalRateLimit(rate float64, burst int) (bool, int, error) {
+	key := "ratelimit:global"
+	return rs.checkRateLimitByKey(key, rate, burst)
+}
+
+func (rs *RedisStore) checkRateLimitByKey(key string, rate float64, burst int) (bool, int, error) {
 	now := time.Now().UnixMilli()
 
 	// Use EVALSHA if we have the SHA cached

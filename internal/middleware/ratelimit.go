@@ -32,15 +32,46 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rejzzzz/goGate/internal/config"
 	"github.com/rejzzzz/goGate/internal/metrics"
 	"github.com/rejzzzz/goGate/internal/ratelimit"
 	"github.com/rejzzzz/goGate/internal/router"
 )
 
 // RateLimit returns a middleware that enforces rate limits
-func RateLimit(store *ratelimit.RedisStore) Middleware {
+func RateLimit(store *ratelimit.RedisStore, cfg config.Config) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// 1. Bypass Check
+			if cfg.RateLimitBypassHeader != "" && cfg.RateLimitBypassToken != "" {
+				if r.Header.Get(cfg.RateLimitBypassHeader) == cfg.RateLimitBypassToken {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+
+			// 2. Global Rate Limit Check
+			if cfg.GlobalRateLimit.RequestsPerSecond > 0 {
+				globalAllowed, globalRemaining, err := store.CheckGlobalRateLimit(
+					cfg.GlobalRateLimit.RequestsPerSecond,
+					cfg.GlobalRateLimit.Burst,
+				)
+				if err != nil {
+					fmt.Printf("Global Rate limit error (failing open): %v\n", err)
+				} else {
+					w.Header().Set("X-Global-RateLimit-Limit", strconv.FormatFloat(cfg.GlobalRateLimit.RequestsPerSecond, 'f', 2, 64))
+					w.Header().Set("X-Global-RateLimit-Remaining", strconv.Itoa(globalRemaining))
+
+					if !globalAllowed {
+						w.Header().Set("Retry-After", "1")
+						metrics.RecordRateLimit("global")
+						http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+						return
+					}
+				}
+			}
+
+			// 3. Per-IP Route specific Rate Limit Check
 			rt, ok := r.Context().Value(router.RouteContextKey).(*router.Route)
 			if !ok || rt == nil || rt.Config.RateLimit.RequestsPerSecond <= 0 {
 				// No rate limit configured for this route, skip
