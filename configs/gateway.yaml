@@ -22,7 +22,7 @@ auth:
 
 routes:
     - path: /api/v1/users
-      strip_prefix: true
+      strip_prefix: false
       upstream_group: user-service
       rate_limit:
           requests_per_second: 100
@@ -30,7 +30,7 @@ routes:
       load_balancer: round-robin
 
     - path: /api/v1/orders
-      strip_prefix: true
+      strip_prefix: false
       upstream_group: order-service
       rate_limit:
           requests_per_second: 50

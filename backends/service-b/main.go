@@ -40,8 +40,8 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/users/", userByIDHandler)
-	mux.HandleFunc("/users", usersHandler)
+	mux.HandleFunc("/api/v1/users/", userByIDHandler)
+	mux.HandleFunc("/api/v1/users", usersHandler)
 
 	http.ListenAndServe(":"+port, mux)
 }
@@ -64,7 +64,7 @@ func makeHandlers(delayMs int, errorRate float64) (http.HandlerFunc, http.Handle
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 			return
 		}
-		id := strings.TrimPrefix(r.URL.Path, "/users/")
+		id := strings.TrimPrefix(r.URL.Path, "/api/v1/users/")
 		for _, u := range users {
 			if u.ID == id {
 				writeJSON(w, http.StatusOK, u)

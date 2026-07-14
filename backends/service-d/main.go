@@ -30,8 +30,8 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/orders/", makeOrderByIDHandler(delayMs))
-	mux.HandleFunc("/orders", makeOrdersHandler(delayMs))
+	mux.HandleFunc("/api/v1/orders/", makeOrderByIDHandler(delayMs))
+	mux.HandleFunc("/api/v1/orders", makeOrdersHandler(delayMs))
 
 	http.ListenAndServe(":"+port, mux)
 }
@@ -50,7 +50,7 @@ func makeOrderByIDHandler(delayMs int) http.HandlerFunc {
 		if delayMs > 0 {
 			time.Sleep(time.Duration(delayMs) * time.Millisecond)
 		}
-		id := strings.TrimPrefix(r.URL.Path, "/orders/")
+		id := strings.TrimPrefix(r.URL.Path, "/api/v1/orders/")
 		for _, o := range orders {
 			if o.ID == id {
 				writeJSON(w, http.StatusOK, o)
