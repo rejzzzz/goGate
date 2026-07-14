@@ -25,8 +25,8 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/users/", handleUserByID)
-	mux.HandleFunc("/users", handleUsers)
+	mux.HandleFunc("/api/v1/users/", handleUserByID)
+	mux.HandleFunc("/api/v1/users", handleUsers)
 
 	http.ListenAndServe(":"+port, mux)
 }
@@ -40,7 +40,7 @@ func handleUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleUserByID(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimPrefix(r.URL.Path, "/users/")
+	id := strings.TrimPrefix(r.URL.Path, "/api/v1/users/")
 	for _, u := range users {
 		if u.ID == id {
 			writeJSON(w, http.StatusOK, u)
