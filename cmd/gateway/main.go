@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
@@ -39,6 +40,11 @@ func main() {
 
 	// Initialize Metrics
 	metrics.Init()
+
+	// Load .env file if present
+	if err := godotenv.Load(); err != nil {
+		logger.Info("No .env file found or error loading it, relying on system environment variables")
+	}
 
 	// 1. Load Configuration
 	configPath := "configs/gateway.yaml"
