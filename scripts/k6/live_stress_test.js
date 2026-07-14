@@ -7,9 +7,10 @@ export const options = {
 };
 
 export default function () {
+    const apiKey = __ENV.TEST_API_KEY || 'YOUR_API_KEY_HERE';
     const params = {
         headers: {
-            'X-API-Key': 'sk_test_1133557799', // From your .env
+            'X-API-Key': apiKey, 
         },
     };
     
