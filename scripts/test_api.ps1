@@ -1,5 +1,6 @@
 $baseUrl = "https://api.gogate.rejwanul.dev"
-$headers = @{ "X-API-Key" = "sk_test_1133557799" }
+$apiKey = if ($env:TEST_API_KEY) { $env:TEST_API_KEY } else { "YOUR_API_KEY_HERE" }
+$headers = @{ "X-API-Key" = $apiKey }
 $ErrorActionPreference = "Stop"
 
 try {

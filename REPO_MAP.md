@@ -21,24 +21,31 @@ A typical incoming HTTP request follows this lifecycle:
 ```text
 .
 ├── admin-ui/          # Frontend assets and code for the Gateway Admin Dashboard
-├── backends/          # Example/Mock microservices (service-a, service-b) for testing
-├── benchmarks/        # Load testing and performance benchmarking scripts (e.g., hey, wrk)
+├── bin/               # Compiled binaries
 ├── cmd/
-│   └── gateway/       # Main executable for the API Gateway (`go run ./cmd/gateway`)
-├── configs/           # Configuration files (YAML, JSON) defining routes and backend endpoints
-├── deploy/            # Deployment manifests (Docker, Kubernetes)
+│   └── gateway/       # Main entry point for the API Gateway
+├── configs/           # Configuration files (gateway.yaml)
+├── deploy/            # Deployment files (Docker, Kubernetes)
 ├── docs/              # Additional documentation
-└── internal/          # Core gateway logic (private to this module)
-    ├── admin/         # HTTP handlers for the Admin API (used by admin-ui)
-    ├── circuitbreaker/# Implementation of circuit breaking patterns (e.g., using hystrix-go or custom)
-    ├── config/        # Configuration parsing and state management
-    ├── healthcheck/   # Active/Passive health checking for backend services
-    ├── loadbalancer/  # Load balancing algorithms (Round Robin, Least Connections)
-    ├── metrics/       # Prometheus metrics exposition (requests, latency, errors)
-    ├── middleware/    # HTTP middlewares (logging, auth, recovery)
-    ├── proxy/         # Reverse proxy implementation (e.g., httputil.ReverseProxy wrappers)
-    ├── ratelimit/     # Rate limiting logic (token bucket, leaky bucket)
-    └── router/        # Route registration and matching
+├── examples/
+│   └── backends/      # Test mock backend services (service-a, b, c, d)
+├── internal/          # Core private gateway code
+│   ├── admin/         # Admin API server
+│   ├── app/           # Core Gateway application initialization
+│   ├── circuitbreaker/# Circuit breaker implementation
+│   ├── config/        # Configuration loader
+│   ├── discovery/     # Service discovery integrations (Consul, Etcd)
+│   ├── healthcheck/   # Active health checking logic
+│   ├── loadbalancer/  # Load balancing strategies
+│   ├── metrics/       # Prometheus metrics collection
+│   ├── middleware/    # HTTP middlewares (auth, ratelimit, logs)
+│   ├── proxy/         # Reverse proxy implementations (HTTP/gRPC)
+│   ├── ratelimit/     # Redis-backed rate limiter
+│   └── router/        # Route matching logic
+└── scripts/           # Testing and helper scripts
+    ├── k6/            # k6 load testing scripts
+    ├── stress_test.go # Native Go stress test script
+    └── test_api.ps1   # PowerShell endpoint tester
 ```
 
 ## Important Development Notes
