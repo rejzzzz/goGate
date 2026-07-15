@@ -24,6 +24,7 @@ package middleware
 // - Structured JSON log entries
 
 import (
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -31,24 +32,78 @@ import (
 	"go.uber.org/zap"
 )
 
-func getClientIP(r *http.Request) string {
-	clientIP := r.Header.Get("X-Forwarded-For")
-	if clientIP != "" {
-		// X-Forwarded-For can contain multiple IPs, take the first one
-		ips := strings.Split(clientIP, ",")
-		return strings.TrimSpace(ips[0])
+// ParseTrustedProxies parses a list of CIDR strings into IPNet structs.
+// Invalid CIDRs are logged but ignored to avoid crashing the server.
+func ParseTrustedProxies(cidrs []string, logger *zap.Logger) []*net.IPNet {
+	var parsed []*net.IPNet
+	for _, cidr := range cidrs {
+		_, ipnet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			logger.Warn("invalid trusted proxy CIDR", zap.String("cidr", cidr), zap.Error(err))
+			continue
+		}
+		parsed = append(parsed, ipnet)
 	}
-	return r.RemoteAddr
+	return parsed
+}
+
+// isTrustedProxy checks if the given IP string matches any of the trusted proxy CIDRs.
+func isTrustedProxy(ipStr string, trustedProxies []*net.IPNet) bool {
+	if len(trustedProxies) == 0 {
+		return false
+	}
+	
+	// Strip port if present
+	host := ipStr
+	if idx := strings.LastIndex(ipStr, ":"); idx != -1 {
+		if !strings.Contains(ipStr, "]") {
+			host = ipStr[:idx]
+		}
+	}
+	
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	
+	for _, network := range trustedProxies {
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// getClientIP returns the real client IP.
+// It only trusts X-Forwarded-For if the request comes from a trusted proxy.
+func getClientIP(r *http.Request, trustedProxies []*net.IPNet) string {
+	remoteIP := r.RemoteAddr
+	
+	// Strip port for consistency
+	if idx := strings.LastIndex(remoteIP, ":"); idx != -1 && !strings.Contains(remoteIP, "]") {
+		remoteIP = remoteIP[:idx]
+	}
+
+	if isTrustedProxy(remoteIP, trustedProxies) {
+		clientIP := r.Header.Get("X-Forwarded-For")
+		if clientIP != "" {
+			// X-Forwarded-For can contain multiple IPs, take the first one
+			ips := strings.Split(clientIP, ",")
+			return strings.TrimSpace(ips[0])
+		}
+	}
+	
+	return remoteIP
 }
 
 // Logging returns a middleware that logs requests and responses
-func Logging(logger *zap.Logger) Middleware {
+func Logging(logger *zap.Logger, trustedProxies []*net.IPNet) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 
 			requestID, _ := r.Context().Value(RequestIDKey).(string)
-			clientIP := getClientIP(r)
+			clientIP := getClientIP(r, trustedProxies)
 
 			logger.Info("request started",
 				zap.String("request_id", requestID),

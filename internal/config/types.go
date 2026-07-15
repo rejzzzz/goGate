@@ -12,6 +12,7 @@ type Config struct {
 	Metrics                MetricsConfig   `mapstructure:"metrics"`
 	Logging                LoggingConfig   `mapstructure:"logging"`
 	GlobalRateLimit        RateLimitConfig `mapstructure:"global_rate_limit"`
+	TrustedProxies         []string        `mapstructure:"trusted_proxies"`
 	RateLimitBypassHeader  string          `mapstructure:"rate_limit_bypass_header"`
 	RateLimitBypassToken   string          `mapstructure:"rate_limit_bypass_token"`
 }

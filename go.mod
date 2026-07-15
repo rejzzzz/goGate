@@ -6,6 +6,7 @@ require (
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/consul/api v1.34.4
+	github.com/joho/godotenv v1.5.1
 	github.com/mwitkow/grpc-proxy v0.0.0-20250813121105-2866842de9a5
 	github.com/prometheus/client_golang v1.23.2
 	github.com/redis/go-redis/v9 v9.4.0
@@ -13,6 +14,7 @@ require (
 	go.etcd.io/etcd/client/v3 v3.7.0
 	go.uber.org/zap v1.27.1
 	golang.org/x/net v0.56.0
+	golang.org/x/time v0.15.0
 	google.golang.org/grpc v1.82.0
 )
 
@@ -37,7 +39,6 @@ require (
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hashicorp/serf v0.10.4 // indirect
-	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect

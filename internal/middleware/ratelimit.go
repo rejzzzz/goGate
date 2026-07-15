@@ -28,6 +28,7 @@ package middleware
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -39,7 +40,7 @@ import (
 )
 
 // RateLimit returns a middleware that enforces rate limits
-func RateLimit(store *ratelimit.RedisStore, cfg config.Config) Middleware {
+func RateLimit(store *ratelimit.RedisStore, globalLimiter *ratelimit.GlobalLimiter, cfg config.Config, trustedProxies []*net.IPNet) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// 1. Bypass Check
@@ -50,28 +51,20 @@ func RateLimit(store *ratelimit.RedisStore, cfg config.Config) Middleware {
 				}
 			}
 
-			// 2. Global Rate Limit Check
-			if cfg.GlobalRateLimit.RequestsPerSecond > 0 {
-				globalAllowed, globalRemaining, err := store.CheckGlobalRateLimit(
-					cfg.GlobalRateLimit.RequestsPerSecond,
-					cfg.GlobalRateLimit.Burst,
-				)
-				if err != nil {
-					fmt.Printf("Global Rate limit error (failing open): %v\n", err)
-				} else {
-					w.Header().Set("X-Global-RateLimit-Limit", strconv.FormatFloat(cfg.GlobalRateLimit.RequestsPerSecond, 'f', 2, 64))
-					w.Header().Set("X-Global-RateLimit-Remaining", strconv.Itoa(globalRemaining))
+			// 2. Global Rate Limit Check (In-Memory)
+			if globalLimiter != nil {
+				w.Header().Set("X-Global-RateLimit-Limit", strconv.FormatFloat(cfg.GlobalRateLimit.RequestsPerSecond, 'f', 2, 64))
+				w.Header().Set("X-Global-RateLimit-Remaining", strconv.Itoa(int(globalLimiter.Tokens())))
 
-					if !globalAllowed {
-						w.Header().Set("Retry-After", "1")
-						metrics.RecordRateLimit("global")
-						http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
-						return
-					}
+				if !globalLimiter.Allow() {
+					w.Header().Set("Retry-After", "1")
+					metrics.RecordRateLimit("global")
+					http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+					return
 				}
 			}
 
-			// 3. Per-IP Route specific Rate Limit Check
+			// 3. Route specific Rate Limit Check
 			rt, ok := r.Context().Value(router.RouteContextKey).(*router.Route)
 			if !ok || rt == nil || rt.Config.RateLimit.RequestsPerSecond <= 0 {
 				// No rate limit configured for this route, skip
@@ -79,19 +72,33 @@ func RateLimit(store *ratelimit.RedisStore, cfg config.Config) Middleware {
 				return
 			}
 
-			clientIP := getClientIP(r) // defined in logging.go
-
-			// If getClientIP contains port (e.g., 127.0.0.1:54321), strip it
-			if idx := strings.LastIndex(clientIP, ":"); idx != -1 {
-				// Simple check to not break IPv6 (which has multiple colons) unless it's bracketed
-				if !strings.Contains(clientIP, "]") {
-					clientIP = clientIP[:idx]
+			// Determine Identity for Rate Limiting
+			// Prioritize API Key if present
+			identity := r.Header.Get("X-API-Key")
+			if identity == "" {
+				authHeader := r.Header.Get("Authorization")
+				if strings.HasPrefix(authHeader, "Bearer ") {
+					identity = strings.TrimPrefix(authHeader, "Bearer ")
 				}
 			}
 
+			// Fallback to IP if no API Key is provided
+			if identity == "" {
+				clientIP := getClientIP(r, trustedProxies) // defined in logging.go
+				// If getClientIP contains port (e.g., 127.0.0.1:54321), strip it
+				if idx := strings.LastIndex(clientIP, ":"); idx != -1 {
+					// Simple check to not break IPv6 (which has multiple colons) unless it's bracketed
+					if !strings.Contains(clientIP, "]") {
+						clientIP = clientIP[:idx]
+					}
+				}
+				identity = clientIP
+			}
+
 			allowed, remaining, err := store.CheckRateLimit(
+				r.Context(),
 				rt.Config.Path,
-				clientIP,
+				identity,
 				rt.Config.RateLimit.RequestsPerSecond,
 				rt.Config.RateLimit.Burst,
 			)

@@ -24,7 +24,7 @@ func TestMiddlewareChain(t *testing.T) {
 	})
 
 	t.Run("Normal Request", func(t *testing.T) {
-		chain := Chain(okHandler, Recovery(logger), RequestID(), Logging(logger))
+		chain := Chain(okHandler, Recovery(logger), RequestID(), Logging(logger, nil))
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
@@ -46,7 +46,7 @@ func TestMiddlewareChain(t *testing.T) {
 	})
 
 	t.Run("Panic Recovery", func(t *testing.T) {
-		chain := Chain(panicHandler, Recovery(logger), RequestID(), Logging(logger))
+		chain := Chain(panicHandler, Recovery(logger), RequestID(), Logging(logger, nil))
 
 		req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 		rec := httptest.NewRecorder()

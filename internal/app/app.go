@@ -264,16 +264,22 @@ func Run(configPath string) {
 		}
 	})
 
+	// Parse trusted proxies
+	trustedProxies := middleware.ParseTrustedProxies(cfg.TrustedProxies, logger)
+
+	// Initialize Global Rate Limiter
+	globalLimiter := ratelimit.NewGlobalLimiter(cfg.GlobalRateLimit.RequestsPerSecond, cfg.GlobalRateLimit.Burst)
+
 	// Wrap with Middleware Chain
 	finalHandler := middleware.Chain(
 		handler,
 		middleware.Recovery(logger),
 		middleware.RequestID(),
-		middleware.Logging(logger),
+		middleware.Logging(logger, trustedProxies),
 		middleware.RouteMatch(r),
 		middleware.Auth(cfg.Auth),
 		middleware.Metrics(),
-		middleware.RateLimit(redisStore, *cfg),
+		middleware.RateLimit(redisStore, globalLimiter, *cfg, trustedProxies),
 	)
 
 	// 7. Start HTTP Server with h2c for cleartext HTTP/2 (gRPC)
