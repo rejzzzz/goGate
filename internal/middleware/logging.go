@@ -105,14 +105,6 @@ func Logging(logger *zap.Logger, trustedProxies []*net.IPNet) Middleware {
 			requestID, _ := r.Context().Value(RequestIDKey).(string)
 			clientIP := getClientIP(r, trustedProxies)
 
-			logger.Info("request started",
-				zap.String("request_id", requestID),
-				zap.String("method", r.Method),
-				zap.String("path", r.URL.Path),
-				zap.String("client_ip", clientIP),
-				zap.String("user_agent", r.UserAgent()),
-			)
-
 			// Wrap response writer to capture status code and bytes
 			rw := newResponseWriter(w)
 
@@ -121,6 +113,9 @@ func Logging(logger *zap.Logger, trustedProxies []*net.IPNet) Middleware {
 			duration := time.Since(start)
 			logger.Info("request completed",
 				zap.String("request_id", requestID),
+				zap.String("method", r.Method),
+				zap.String("path", r.URL.Path),
+				zap.String("client_ip", clientIP),
 				zap.Int("status_code", rw.statusCode),
 				zap.Duration("duration", duration),
 				zap.Int("bytes_sent", rw.bytesWritten),

@@ -34,7 +34,12 @@ import (
 
 // Run initializes and starts the API Gateway.
 func Run(configPath string) {
-	logger, _ := zap.NewProduction()
+	prodConfig := zap.NewProductionConfig()
+	prodConfig.Sampling = &zap.SamplingConfig{
+		Initial:    100,
+		Thereafter: 100,
+	}
+	logger, _ := prodConfig.Build()
 	defer logger.Sync()
 
 	logger.Info("Starting Distributed API Gateway...")
@@ -201,7 +206,7 @@ func Run(configPath string) {
 		}
 	}()
 	// 5. Initialize Proxies
-	p := proxy.NewHTTPProxy(nil)
+	p := proxy.NewHTTPProxy(proxy.NewTransport())
 	grpcProxy := proxy.NewGRPCProxy()
 
 	// 6. Build Root HTTP Handler
@@ -235,13 +240,7 @@ func Run(configPath string) {
 		// Select upstream using route's load balancer
 		target := route.LB.Next(ups)
 		if target == nil {
-			http.Error(w, "Bad Gateway: No Healthy Upstreams", http.StatusBadGateway)
-			return
-		}
-
-		if target.CircuitBreaker != nil && !target.CircuitBreaker.Allow() {
-			w.Header().Set("X-Circuit-Breaker", "open")
-			http.Error(w, "Service Unavailable: Circuit Breaker Open", http.StatusServiceUnavailable)
+			http.Error(w, "Bad Gateway: No Healthy Upstreams Available", http.StatusBadGateway)
 			return
 		}
 
@@ -290,9 +289,25 @@ func Run(configPath string) {
 
 	addr := fmt.Sprintf(":%d", port)
 
+	readTimeout := cfg.Server.ReadTimeout
+	if readTimeout == 0 {
+		readTimeout = 5 * time.Second
+	}
+	writeTimeout := cfg.Server.WriteTimeout
+	if writeTimeout == 0 {
+		writeTimeout = 10 * time.Second
+	}
+	idleTimeout := cfg.Server.IdleTimeout
+	if idleTimeout == 0 {
+		idleTimeout = 120 * time.Second
+	}
+
 	srv := &http.Server{
-		Addr:    addr,
-		Handler: h2c.NewHandler(finalHandler, &http2.Server{}),
+		Addr:         addr,
+		Handler:      h2c.NewHandler(finalHandler, &http2.Server{}),
+		ReadTimeout:  readTimeout,
+		WriteTimeout: writeTimeout,
+		IdleTimeout:  idleTimeout,
 	}
 
 	go func() {

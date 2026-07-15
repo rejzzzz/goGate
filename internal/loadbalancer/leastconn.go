@@ -37,7 +37,7 @@ func NewLeastConnections() *LeastConnections {
 func (lc *LeastConnections) Next(upstreams []*Upstream) *Upstream {
 	var healthy []*Upstream
 	for _, u := range upstreams {
-		if u.Healthy.Load() {
+		if u.Healthy.Load() && (u.CircuitBreaker == nil || u.CircuitBreaker.Allow()) {
 			healthy = append(healthy, u)
 		}
 	}

@@ -47,7 +47,10 @@ const (
 )
 
 type Breaker struct {
-	mu                   sync.Mutex
+	// WARNING: We use RWMutex to optimize the extreme high-throughput StateClosed path.
+	// Under massive concurrent read load, writers (Lock) can be starved by continuous readers (RLock).
+	// Because circuit breaker state transitions are rare, this trade-off is acceptable for the performance win.
+	mu                   sync.RWMutex
 	state                State
 	window               *Window
 	consecutiveSuccesses int
@@ -80,17 +83,27 @@ func NewBreaker(config *Config) *Breaker {
 
 // Allow checks if a request is allowed through the circuit breaker
 func (b *Breaker) Allow() bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.mu.RLock()
+	state := b.state
+	lastStateChange := b.lastStateChange
+	b.mu.RUnlock()
 
-	switch b.state {
+	switch state {
 	case StateClosed:
 		return true
 	case StateOpen:
-		if time.Since(b.lastStateChange) >= b.config.Timeout {
-			b.state = StateHalfOpen
-			b.lastStateChange = time.Now()
-			return true // Allow one probe request
+		if time.Since(lastStateChange) >= b.config.Timeout {
+			// Need a write lock to change state.
+			b.mu.Lock()
+			// Double-check state in case another goroutine already changed it
+			if b.state == StateOpen {
+				b.state = StateHalfOpen
+				b.lastStateChange = time.Now()
+				b.mu.Unlock()
+				return true // Allow one probe request
+			}
+			b.mu.Unlock()
+			return false
 		}
 		return false
 	case StateHalfOpen:
@@ -142,8 +155,8 @@ func (b *Breaker) RecordFailure() {
 
 // State returns the current state of the circuit breaker
 func (b *Breaker) State() State {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	return b.state
 }
 

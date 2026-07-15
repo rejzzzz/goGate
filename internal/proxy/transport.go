@@ -23,10 +23,28 @@ package proxy
 // Inputs: Timeout configurations
 // Outputs: Configured http.Transport ready for ReverseProxy
 
-import "net/http"
+import (
+	"net"
+	"net/http"
+	"time"
+)
 
 // NewTransport creates an optimized HTTP transport for upstream connections
 func NewTransport() *http.Transport {
-	// TODO: Implement optimized transport configuration
-	return &http.Transport{}
+	return &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   5 * time.Second, // Fast failure for unreachable hosts
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          10000,
+		MaxIdleConnsPerHost:   10000,
+		MaxConnsPerHost:       0, // unlimited
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second, // Time to wait for a server's response headers
+		DisableKeepAlives:     false,
+	}
 }

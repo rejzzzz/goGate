@@ -14,10 +14,10 @@ func NewRoundRobin() *RoundRobin {
 
 // Next selects the next upstream in round-robin order
 func (rr *RoundRobin) Next(upstreams []*Upstream) *Upstream {
-	// Filter for healthy upstreams
+	// Filter for healthy upstreams that are not open
 	var healthy []*Upstream
 	for _, u := range upstreams {
-		if u.Healthy.Load() {
+		if u.Healthy.Load() && (u.CircuitBreaker == nil || u.CircuitBreaker.Allow()) {
 			healthy = append(healthy, u)
 		}
 	}

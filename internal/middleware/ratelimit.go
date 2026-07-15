@@ -27,11 +27,13 @@ package middleware
 // - X-RateLimit-* headers on all responses
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/rejzzzz/goGate/internal/config"
 	"github.com/rejzzzz/goGate/internal/metrics"
@@ -95,8 +97,11 @@ func RateLimit(store *ratelimit.RedisStore, globalLimiter *ratelimit.GlobalLimit
 				identity = clientIP
 			}
 
+			ctx, cancel := context.WithTimeout(r.Context(), 200*time.Millisecond)
+			defer cancel()
+
 			allowed, remaining, err := store.CheckRateLimit(
-				r.Context(),
+				ctx,
 				rt.Config.Path,
 				identity,
 				rt.Config.RateLimit.RequestsPerSecond,
@@ -104,9 +109,9 @@ func RateLimit(store *ratelimit.RedisStore, globalLimiter *ratelimit.GlobalLimit
 			)
 
 			if err != nil {
-				// Log error, but fail open to not break traffic if Redis is down
-				fmt.Printf("Rate limit error (failing open): %v\n", err)
-				next.ServeHTTP(w, r)
+				// Log error, and fail CLOSED for security
+				fmt.Printf("Rate limit error (failing closed): %v\n", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
 
