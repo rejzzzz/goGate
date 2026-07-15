@@ -8,6 +8,12 @@ export const fetchStats = async (): Promise<GatewayStats> => {
   return res.json();
 };
 
+export const fetchMetricsHistory = async (timeWindow: string): Promise<any[]> => {
+  const res = await fetch(`${API_BASE}/metrics/history?window=${timeWindow}`);
+  if (!res.ok) throw new Error('Failed to fetch metrics history');
+  return res.json();
+};
+
 export const fetchRoutes = async (): Promise<RouteConfig[]> => {
   const res = await fetch(`${API_BASE}/routes`);
   if (!res.ok) throw new Error('Failed to fetch routes');

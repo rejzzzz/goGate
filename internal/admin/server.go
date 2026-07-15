@@ -15,10 +15,11 @@ type Server struct {
 	httpServer *http.Server
 	port       int
 
-	router      *router.Router
-	upstreamMap *atomic.Value
-	registry    *healthcheck.Registry
-	reloadChan  chan<- struct{}
+	router        *router.Router
+	upstreamMap   *atomic.Value
+	registry      *healthcheck.Registry
+	reloadChan    chan<- struct{}
+	prometheusURL string
 }
 
 func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -37,13 +38,14 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // NewServer creates a new admin server
-func NewServer(port int, r *router.Router, uMap *atomic.Value, reg *healthcheck.Registry, reloadChan chan<- struct{}) *Server {
+func NewServer(port int, r *router.Router, uMap *atomic.Value, reg *healthcheck.Registry, reloadChan chan<- struct{}, prometheusURL string) *Server {
 	s := &Server{
-		port:        port,
-		router:      r,
-		upstreamMap: uMap,
-		registry:    reg,
-		reloadChan:  reloadChan,
+		port:          port,
+		router:        r,
+		upstreamMap:   uMap,
+		registry:      reg,
+		reloadChan:    reloadChan,
+		prometheusURL: prometheusURL,
 	}
 
 	mux := http.NewServeMux()
@@ -55,6 +57,7 @@ func NewServer(port int, r *router.Router, uMap *atomic.Value, reg *healthcheck.
 	mux.HandleFunc("/admin/api/circuit-breakers", corsMiddleware(s.HandleCircuitBreakers))
 	mux.HandleFunc("/admin/api/circuit-breakers/reset", corsMiddleware(s.HandleCircuitBreakerReset))
 	mux.HandleFunc("/admin/api/config/reload", corsMiddleware(s.HandleConfigReload))
+	mux.HandleFunc("/admin/api/metrics/history", corsMiddleware(s.HandleMetricsHistory))
 	mux.HandleFunc("/admin/health", corsMiddleware(s.HandleHealth))
 
 	// Serve React app (assuming built files are in admin-ui/dist)

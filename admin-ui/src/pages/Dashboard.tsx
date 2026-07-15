@@ -1,50 +1,7 @@
 import { useEffect, useState } from 'react';
-import { fetchStats } from '../api/gateway';
+import { fetchStats, fetchMetricsHistory } from '../api/gateway';
 import type { GatewayStats } from '../api/types';
 import MetricsChart from '../components/MetricsChart';
-
-const generateChartData = (timeWindow: string) => {
-  const data = [];
-  const now = new Date();
-  
-  let points = 30;
-  let intervalMs = 10000;
-  
-  switch(timeWindow) {
-    case '15m':
-      points = 30;
-      intervalMs = 30000;
-      break;
-    case '30m':
-      points = 30;
-      intervalMs = 60000;
-      break;
-    case '1h':
-      points = 60;
-      intervalMs = 60000;
-      break;
-    case '24h':
-      points = 48;
-      intervalMs = 1800000; // 30 min intervals
-      break;
-    case '5m':
-    default:
-      points = 30;
-      intervalMs = 10000;
-  }
-
-  for (let i = points; i >= 0; i--) {
-    const time = new Date(now.getTime() - i * intervalMs);
-    data.push({
-      time: timeWindow === '24h' 
-        ? time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-        : time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      rps: Math.floor(11000 + Math.random() * 3000),
-      latency: +(8 + Math.random() * 6).toFixed(1),
-    });
-  }
-  return data;
-};
 
 export default function Dashboard() {
   const [stats, setStats] = useState<GatewayStats | null>(null);
@@ -67,30 +24,55 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    setChartData(generateChartData(timeWindow));
-    
     let intervalMs = 10000;
     if (timeWindow === '15m') intervalMs = 30000;
     else if (timeWindow === '30m' || timeWindow === '1h') intervalMs = 60000;
     else if (timeWindow === '24h') intervalMs = 1800000;
 
-    // Simulate real-time updates for chart
-    const interval = setInterval(() => {
-      setChartData(prev => {
-        const newData = [...prev.slice(1)];
-        const time = new Date();
-        newData.push({
-          time: timeWindow === '24h' 
-            ? time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-            : time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-          rps: Math.floor(11000 + Math.random() * 3000),
-          latency: +(8 + Math.random() * 6).toFixed(1),
+    const loadHistory = () => {
+      fetchMetricsHistory(timeWindow)
+        .then(data => {
+          if (data && data.length > 0) {
+            setChartData(data);
+          }
+        })
+        .catch(err => {
+          console.error('Failed to fetch metrics history', err);
+          // Fallback mock if backend history is unavailable
+          setChartData(generateFallbackData(timeWindow));
         });
-        return newData;
-      });
-    }, intervalMs);
+    };
+
+    // Initial load
+    loadHistory();
+
+    // Poll for updates
+    const interval = setInterval(loadHistory, intervalMs);
     return () => clearInterval(interval);
   }, [timeWindow]);
+
+  const generateFallbackData = (tw: string) => {
+    const data = [];
+    const now = new Date();
+    let points = 30;
+    let intMs = 10000;
+    if (tw === '15m') { points = 30; intMs = 30000; }
+    else if (tw === '30m') { points = 30; intMs = 60000; }
+    else if (tw === '1h') { points = 60; intMs = 60000; }
+    else if (tw === '24h') { points = 48; intMs = 1800000; }
+
+    for (let i = points; i >= 0; i--) {
+      const time = new Date(now.getTime() - i * intMs);
+      data.push({
+        time: tw === '24h' 
+          ? time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+          : time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        rps: Math.floor(11000 + Math.random() * 3000),
+        latency: +(8 + Math.random() * 6).toFixed(1),
+      });
+    }
+    return data;
+  };
 
   const [reloading, setReloading] = useState(false);
 

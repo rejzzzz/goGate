@@ -2,7 +2,10 @@ package admin
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -228,4 +231,184 @@ func (s *Server) HandleConfigReload(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	sendJSON(w, map[string]string{"status": "healthy"})
+}
+
+// HistoryData Point
+type HistoryData struct {
+	Time    string  `json:"time"`
+	RPS     float64 `json:"rps"`
+	Latency float64 `json:"latency"`
+}
+
+// prometheusQuery makes an HTTP GET request to Prometheus
+func prometheusQuery(baseURL, query string, start, end time.Time, step string) (*http.Response, error) {
+	u, err := url.Parse(fmt.Sprintf("%s/api/v1/query_range", baseURL))
+	if err != nil {
+		return nil, err
+	}
+	q := u.Query()
+	q.Set("query", query)
+	q.Set("start", strconv.FormatInt(start.Unix(), 10))
+	q.Set("end", strconv.FormatInt(end.Unix(), 10))
+	q.Set("step", step)
+	u.RawQuery = q.Encode()
+
+	return http.Get(u.String())
+}
+
+func (s *Server) HandleMetricsHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		HandleOptions(w, r)
+		return
+	}
+
+	timeWindow := r.URL.Query().Get("window")
+	if timeWindow == "" {
+		timeWindow = "5m"
+	}
+
+	var duration time.Duration
+	var step string
+	switch timeWindow {
+	case "15m":
+		duration = 15 * time.Minute
+		step = "30s"
+	case "30m":
+		duration = 30 * time.Minute
+		step = "1m"
+	case "1h":
+		duration = time.Hour
+		step = "1m"
+	case "24h":
+		duration = 24 * time.Hour
+		step = "30m"
+	default:
+		duration = 5 * time.Minute
+		step = "10s"
+	}
+
+	end := time.Now()
+	start := end.Add(-duration)
+
+	promURL := s.prometheusURL
+	if promURL == "" {
+		promURL = "http://prometheus:9090"
+	}
+
+	// 1. Query RPS (rate of requests over 1m)
+	rpsQuery := `sum(rate(gateway_requests_total[1m]))`
+	rpsResp, err := prometheusQuery(promURL, rpsQuery, start, end, step)
+	if err != nil {
+		http.Error(w, "Failed to query prometheus for RPS", http.StatusInternalServerError)
+		return
+	}
+	defer rpsResp.Body.Close()
+
+	var rpsResult struct {
+		Data struct {
+			Result []struct {
+				Values [][]interface{} `json:"values"`
+			} `json:"result"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(rpsResp.Body).Decode(&rpsResult); err != nil {
+		http.Error(w, "Failed to parse prometheus response", http.StatusInternalServerError)
+		return
+	}
+
+	// 2. Query P95 Latency (histogram quantile)
+	latQuery := `histogram_quantile(0.95, sum(rate(gateway_request_duration_seconds_bucket[1m])) by (le))`
+	latResp, err := prometheusQuery(promURL, latQuery, start, end, step)
+	if err != nil {
+		http.Error(w, "Failed to query prometheus for latency", http.StatusInternalServerError)
+		return
+	}
+	defer latResp.Body.Close()
+
+	var latResult struct {
+		Data struct {
+			Result []struct {
+				Values [][]interface{} `json:"values"`
+			} `json:"result"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(latResp.Body).Decode(&latResult); err != nil {
+		http.Error(w, "Failed to parse prometheus response", http.StatusInternalServerError)
+		return
+	}
+
+	// 3. Combine results based on time points
+	resultsMap := make(map[float64]*HistoryData)
+	var timeKeys []float64
+
+	// Process RPS
+	if len(rpsResult.Data.Result) > 0 {
+		for _, v := range rpsResult.Data.Result[0].Values {
+			ts := v[0].(float64)
+			rpsStr := v[1].(string)
+			rps, _ := strconv.ParseFloat(rpsStr, 64)
+			
+			timeKeys = append(timeKeys, ts)
+			t := time.Unix(int64(ts), 0)
+			
+			timeFormat := "15:04:05"
+			if timeWindow == "24h" {
+				timeFormat = "15:04"
+			}
+			
+			resultsMap[ts] = &HistoryData{
+				Time:    t.Format(timeFormat),
+				RPS:     rps,
+				Latency: 0,
+			}
+		}
+	}
+
+	// Process Latency
+	if len(latResult.Data.Result) > 0 {
+		for _, v := range latResult.Data.Result[0].Values {
+			ts := v[0].(float64)
+			latStr := v[1].(string)
+			lat, _ := strconv.ParseFloat(latStr, 64)
+			
+			// convert seconds to ms
+			latMs := lat * 1000
+			// sometimes prometheus returns NaN for empty buckets
+			if latMs != latMs {
+				latMs = 0
+			}
+
+			if hd, ok := resultsMap[ts]; ok {
+				hd.Latency = latMs
+			} else {
+				// if timestamp not in RPS, add it
+				t := time.Unix(int64(ts), 0)
+				timeFormat := "15:04:05"
+				if timeWindow == "24h" {
+					timeFormat = "15:04"
+				}
+				resultsMap[ts] = &HistoryData{
+					Time:    t.Format(timeFormat),
+					RPS:     0,
+					Latency: latMs,
+				}
+				timeKeys = append(timeKeys, ts)
+			}
+		}
+	}
+
+	// output sorted by time (map iteration is random, but Prometheus returns ordered, but since we merge we could sort)
+	// actually since we appended timeKeys from RPS, and it's already sorted, let's just iterate over timeKeys
+	var finalData []HistoryData
+	
+	// Just return an array
+	for _, ts := range timeKeys {
+		finalData = append(finalData, *resultsMap[ts])
+	}
+	
+	if finalData == nil {
+		finalData = []HistoryData{}
+	}
+
+	sendJSON(w, finalData)
 }

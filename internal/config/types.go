@@ -99,8 +99,9 @@ type CircuitBreakerConfig struct {
 
 // MetricsConfig controls Prometheus metrics exposure.
 type MetricsConfig struct {
-	Enabled bool   `mapstructure:"enabled"`
-	Path    string `mapstructure:"path"`
+	Enabled       bool   `mapstructure:"enabled"`
+	Path          string `mapstructure:"path"`
+	PrometheusURL string `mapstructure:"prometheus_url"`
 }
 
 // LoggingConfig controls structured log output.

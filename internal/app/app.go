@@ -183,7 +183,7 @@ func Run(configPath string) {
 	if adminPort == 0 {
 		adminPort = 9090
 	}
-	adminServer := admin.NewServer(adminPort, r, &upstreamMap, registry, reloadChan)
+	adminServer := admin.NewServer(adminPort, r, &upstreamMap, registry, reloadChan, cfg.Metrics.PrometheusURL)
 
 	// Hot Reload goroutine
 	go func() {
