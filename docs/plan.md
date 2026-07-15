@@ -119,7 +119,7 @@ api-gateway/
 │       ├── server.go                # Admin HTTP server
 │       └── handlers.go              # Admin API handlers
 │
-├── backends/
+├── examples/backends/
 │   ├── service-a/                   # Fast REST service (port 8081)
 │   │   └── main.go
 │   ├── service-b/                   # Slow/flaky REST service (port 8082)
@@ -506,7 +506,7 @@ Health response format:
 - Exists specifically so `order-service` has two upstreams — **least-connections load balancing is meaningless with a single upstream**
 - Simulate different load by throttling one instance with a `time.Sleep` flag
 
-All four services are standalone Go binaries in `/backends/`.
+All four services are standalone Go binaries in `/examples/backends/`.
 
 ---
 
@@ -613,25 +613,25 @@ services:
         env_file: .env
 
     service-a:
-        build: ./backends/service-a
+        build: ./examples/backends/service-a
         ports: ["8081:8081"]
         networks: [gateway-net]
         restart: unless-stopped
 
     service-b:
-        build: ./backends/service-b
+        build: ./examples/backends/service-b
         ports: ["8082:8082"]
         networks: [gateway-net]
         restart: unless-stopped
 
     service-c:
-        build: ./backends/service-c
+        build: ./examples/backends/service-c
         ports: ["9000:9000"]
         networks: [gateway-net]
         restart: unless-stopped
 
     service-d:
-        build: ./backends/service-d
+        build: ./examples/backends/service-d
         ports: ["8083:8083"]
         networks: [gateway-net]
         restart: unless-stopped
@@ -815,7 +815,7 @@ bench-basic:      k6 run benchmarks/k6/basic_load.js
 bench-ratelimit:  k6 run benchmarks/k6/rate_limit_test.js
 bench-cb:         k6 run benchmarks/k6/circuit_breaker_test.js
 lint:             golangci-lint run
-proto:            protoc --go_out=. --go-grpc_out=. backends/service-c/proto/echo.proto
+proto:            protoc --go_out=. --go-grpc_out=. examples/backends/service-c/proto/echo.proto
 docker-build:     docker build -t api-gateway .
 clean:            rm -rf bin/ coverage.out
 deploy:           rsync -avz --exclude='.git' --exclude='node_modules' --exclude='bin' \

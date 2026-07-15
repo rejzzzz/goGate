@@ -33,31 +33,31 @@ lint:
 	golangci-lint run ./...
 
 proto:
-	protoc --go_out=. --go-grpc_out=. backends/service-c/proto/echo.proto
+	protoc --go_out=. --go-grpc_out=. examples/backends/service-c/proto/echo.proto
 
 run-gateway: build
 	./bin/gateway
 
 run-backends:
-	docker compose up service-a service-b service-c service-d
+	docker compose -f deploy/docker-compose.yml up service-a service-b service-c service-d
 
 run-infra:
-	docker compose up redis prometheus grafana
+	docker compose -f deploy/docker-compose.yml up redis prometheus grafana
 
 run-all:
-	docker compose up
+	docker compose -f deploy/docker-compose.yml up
 
 docker-build:
-	docker build -t api-gateway:latest .
+	docker build -t api-gateway:latest -f deploy/Dockerfile .
 
 docker-up:
-	docker compose up -d
+	docker compose -f deploy/docker-compose.yml up -d
 
 docker-down:
-	docker compose down
+	docker compose -f deploy/docker-compose.yml down
 
 bench-basic:
-	k6 run benchmarks/k6/basic_load.js
+	k6 run scripts/k6/basic_load.js
 
 clean:
 	rm -rf bin/ coverage.out coverage.html

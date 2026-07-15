@@ -133,13 +133,15 @@ wrk -t12 -c400 -d30s http://localhost:8080/api/v1/users
 │   ├── ratelimit/           # Redis-backed token bucket
 │   ├── circuitbreaker/      # State machine for fault isolation
 │   └── admin/               # Admin API server & handlers
-├── backends/                 # Test services (A, B, C, D)
+├── examples/
+│   └── backends/            # Example/Mock microservices for testing
 ├── admin-ui/                 # React admin UI
 ├── configs/                  # Configuration files
-├── deploy/                   # Docker Compose & Grafana/Prometheus configs
-├── benchmarks/               # k6 & wrk benchmark scripts
-├── Dockerfile               # Gateway container image
-├── docker-compose.yml       # Full stack composition
+├── scripts/                  # Testing and helper scripts
+├── deploy/                   # Deployment files
+│   ├── Dockerfile            # Gateway container image
+│   ├── docker-compose.yml    # Full stack composition
+│   └── prometheus/           # Monitoring configs
 └── Makefile                 # Build automation
 ```
 
