@@ -80,3 +80,8 @@ metrics:
 logging:
     level: info
     format: json
+
+trusted_proxies:
+    - "172.16.0.0/12"   # Docker default bridge
+    - "10.0.0.0/8"      # Private networks
+    - "127.0.0.1/32"    # Localhost
