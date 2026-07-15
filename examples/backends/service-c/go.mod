@@ -1,4 +1,4 @@
-module github.com/rejzzzz/goGate/backends/service-c
+module github.com/rejzzzz/goGate/examples/backends/service-c
 
 go 1.22
 

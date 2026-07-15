@@ -15,7 +15,7 @@ syntax = "proto3";
 
 package echo;
 
-option go_package = "github.com/rejzzzz/goGate/backends/service-c/proto";
+option go_package = "github.com/rejzzzz/goGate/examples/backends/service-c/proto";
 
 // EchoService echoes back messages
 service EchoService {

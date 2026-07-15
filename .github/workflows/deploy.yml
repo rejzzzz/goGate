@@ -37,7 +37,7 @@ jobs:
             fi
 
             # Build and deploy with Docker Compose
-            docker compose up -d --build --remove-orphans
+            docker compose -f deploy/docker-compose.yml up -d --build --remove-orphans
 
             # Wait for services to start
             echo "Waiting for services to start..."

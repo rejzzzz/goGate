@@ -74,7 +74,7 @@ Manual check (no test framework needed yet):
 
 ## Step 2: Backend Services
 
-### 2.1 — Complete `backends/service-a/main.go`
+### 2.1 — Complete `examples/backends/service-a/main.go`
 
 Fill in the two empty handlers:
 
@@ -94,7 +94,7 @@ No external dependencies, no routing library. The existing `http.HandleFunc` reg
 
 ---
 
-### 2.2 — Complete `backends/service-b/main.go`
+### 2.2 — Complete `examples/backends/service-b/main.go`
 
 Service-b is a drop-in slow/flaky version of service-a. The env vars (`DELAY_MS`, `ERROR_RATE`) are already parsed. Wire them into handlers:
 
@@ -105,18 +105,18 @@ Service-b is a drop-in slow/flaky version of service-a. The env vars (`DELAY_MS`
 
 ---
 
-### 2.3 — Create `backends/service-c/main.go` (gRPC echo service)
+### 2.3 — Create `examples/backends/service-c/main.go` (gRPC echo service)
 
 This file is completely missing. Create it:
 
-- Run `protoc` to generate Go code from `echo.proto` into `backends/service-c/proto/` — or generate it manually since it's simple enough to write by hand (`echo_grpc.pb.go`, `echo.pb.go`)
+- Run `protoc` to generate Go code from `echo.proto` into `examples/backends/service-c/proto/` — or generate it manually since it's simple enough to write by hand (`echo_grpc.pb.go`, `echo.pb.go`)
 - Implement `EchoServiceServer` interface with a single `Echo` method that returns `EchoResponse{Message: req.Message, Timestamp: time.Now().UnixMilli()}`
 - In `main()`: read `PORT` env var (default `9000`), create `grpc.NewServer()`, register the service, call `server.Serve(lis)`
 - No TLS needed — plain gRPC for local/Docker use
 
 ---
 
-### 2.4 — Create `backends/service-d/main.go` (order service)
+### 2.4 — Create `examples/backends/service-d/main.go` (order service)
 
 Also completely missing. Create it as a minimal orders REST service:
 
@@ -134,22 +134,22 @@ Run each service locally and smoke-test with curl:
 
 ```
 # Terminal 1
-cd backends/service-a && go run main.go
+cd examples/backends/service-a && go run main.go
 curl http://localhost:8081/health          # {"status":"ok"}
 curl http://localhost:8081/users           # [...users...]
 curl http://localhost:8081/users/1         # {"id":"1",...}
 curl http://localhost:8081/users/99        # 404
 
 # Terminal 2
-cd backends/service-b && go run main.go
+cd examples/backends/service-b && go run main.go
 curl http://localhost:8082/users           # sometimes 500, ~95% returns data
 
 # Terminal 3
-cd backends/service-c && go run main.go
+cd examples/backends/service-c && go run main.go
 # grpcurl -plaintext localhost:9000 echo.EchoService/Echo  (if grpcurl installed)
 
 # Terminal 4
-cd backends/service-d && go run main.go
+cd examples/backends/service-d && go run main.go
 curl http://localhost:8083/health
 curl http://localhost:8083/orders
 ```
@@ -161,10 +161,10 @@ curl http://localhost:8083/orders
 Each backend has a `Dockerfile` already. Build and confirm they compile in Docker:
 
 ```
-docker build -t service-a ./backends/service-a
-docker build -t service-b ./backends/service-b
-docker build -t service-c ./backends/service-c
-docker build -t service-d ./backends/service-d
+docker build -t service-a ./examples/backends/service-a
+docker build -t service-b ./examples/backends/service-b
+docker build -t service-c ./examples/backends/service-c
+docker build -t service-d ./examples/backends/service-d
 ```
 
 Fix any build errors (likely just missing generated proto files for service-c).
