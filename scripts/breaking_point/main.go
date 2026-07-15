@@ -11,6 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 var (
@@ -18,11 +20,14 @@ var (
 	concurrency = flag.Int("c", 100, "Number of concurrent workers (goroutines)")
 	duration    = flag.Duration("d", 30*time.Second, "Duration of the test")
 	apiKey      = flag.String("apikey", "", "API Key for auth (defaults to TEST_API_KEY env var if empty)")
-	bypassLimit = flag.Bool("bypass", true, "Spoof X-Forwarded-For to bypass per-IP rate limits")
+	bypassLimit = flag.Bool("bypass", true, "Use bypass token to bypass rate limit")
 )
 
 func main() {
 	flag.Parse()
+
+	// Try to load .env file from current directory
+	_ = godotenv.Load()
 
 	key := *apiKey
 	if key == "" {
@@ -88,7 +93,7 @@ func main() {
 						req.Header.Set("X-API-Key", key)
 					}
 
-					if bypassToken != "" {
+					if *bypassLimit && bypassToken != "" {
 						req.Header.Set(bypassHeader, bypassToken)
 					}
 

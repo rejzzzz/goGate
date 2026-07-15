@@ -3,13 +3,42 @@ import { fetchStats } from '../api/gateway';
 import type { GatewayStats } from '../api/types';
 import MetricsChart from '../components/MetricsChart';
 
-const generateChartData = () => {
+const generateChartData = (timeWindow: string) => {
   const data = [];
   const now = new Date();
-  for (let i = 30; i >= 0; i--) {
-    const time = new Date(now.getTime() - i * 10000);
+  
+  let points = 30;
+  let intervalMs = 10000;
+  
+  switch(timeWindow) {
+    case '15m':
+      points = 30;
+      intervalMs = 30000;
+      break;
+    case '30m':
+      points = 30;
+      intervalMs = 60000;
+      break;
+    case '1h':
+      points = 60;
+      intervalMs = 60000;
+      break;
+    case '24h':
+      points = 48;
+      intervalMs = 1800000; // 30 min intervals
+      break;
+    case '5m':
+    default:
+      points = 30;
+      intervalMs = 10000;
+  }
+
+  for (let i = points; i >= 0; i--) {
+    const time = new Date(now.getTime() - i * intervalMs);
     data.push({
-      time: time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      time: timeWindow === '24h' 
+        ? time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+        : time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
       rps: Math.floor(11000 + Math.random() * 3000),
       latency: +(8 + Math.random() * 6).toFixed(1),
     });
@@ -20,26 +49,48 @@ const generateChartData = () => {
 export default function Dashboard() {
   const [stats, setStats] = useState<GatewayStats | null>(null);
   const [chartData, setChartData] = useState<any[]>([]);
+  const [timeWindow, setTimeWindow] = useState('5m');
 
   useEffect(() => {
-    fetchStats().then(setStats).catch(console.error);
-    setChartData(generateChartData());
+    fetchStats().then(setStats).catch((err) => {
+      console.error('Failed to fetch stats, using mock data for preview:', err);
+      setStats({
+        requestsPerSecond: 12500,
+        p50Latency: 5.2,
+        p95Latency: 12.4,
+        p99Latency: 18.7,
+        errorRate: 0.001,
+        rateLimitedCount: 45,
+        activeCircuitBreakers: 0
+      });
+    });
+  }, []);
+
+  useEffect(() => {
+    setChartData(generateChartData(timeWindow));
     
+    let intervalMs = 10000;
+    if (timeWindow === '15m') intervalMs = 30000;
+    else if (timeWindow === '30m' || timeWindow === '1h') intervalMs = 60000;
+    else if (timeWindow === '24h') intervalMs = 1800000;
+
     // Simulate real-time updates for chart
     const interval = setInterval(() => {
       setChartData(prev => {
         const newData = [...prev.slice(1)];
         const time = new Date();
         newData.push({
-          time: time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          time: timeWindow === '24h' 
+            ? time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+            : time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
           rps: Math.floor(11000 + Math.random() * 3000),
           latency: +(8 + Math.random() * 6).toFixed(1),
         });
         return newData;
       });
-    }, 10000);
+    }, intervalMs);
     return () => clearInterval(interval);
-  }, []);
+  }, [timeWindow]);
 
   const [reloading, setReloading] = useState(false);
 
@@ -96,7 +147,11 @@ export default function Dashboard() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem' }}>
-        <MetricsChart data={chartData} />
+        <MetricsChart 
+          data={chartData} 
+          timeWindow={timeWindow} 
+          onTimeWindowChange={setTimeWindow} 
+        />
       </div>
     </div>
   );
