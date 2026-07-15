@@ -44,7 +44,9 @@ A typical incoming HTTP request follows this lifecycle:
 │   └── router/        # Route matching logic
 └── scripts/           # Testing and helper scripts
     ├── k6/            # k6 load testing scripts
-    ├── stress_test.go # Native Go stress test script
+    ├── verify_grpc/   # gRPC proxy verification script
+    ├── stress/        # Basic Go stress test script
+    ├── breaking_point/# Go stress test to find the breaking point
     └── test_api.ps1   # PowerShell endpoint tester
 ```
 

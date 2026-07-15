@@ -35,7 +35,6 @@ package ratelimit
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -44,7 +43,9 @@ const luaScript = `
 local key = KEYS[1]
 local rate = tonumber(ARGV[1])
 local burst = tonumber(ARGV[2])
-local now = tonumber(ARGV[3])
+
+local time_arr = redis.call("TIME")
+local now = tonumber(time_arr[1]) * 1000 + math.floor(tonumber(time_arr[2]) / 1000)
 
 local data = redis.call("HMGET", key, "tokens", "ts")
 local tokens = tonumber(data[1]) or burst
@@ -88,31 +89,23 @@ func (rs *RedisStore) LoadScript(ctx context.Context) error {
 }
 
 // CheckRateLimit checks if a request is allowed under rate limit
-func (rs *RedisStore) CheckRateLimit(route, clientIP string, rate float64, burst int) (bool, int, error) {
+func (rs *RedisStore) CheckRateLimit(ctx context.Context, route, clientIP string, rate float64, burst int) (bool, int, error) {
 	key := fmt.Sprintf("ratelimit:%s:%s", route, clientIP)
-	return rs.checkRateLimitByKey(key, rate, burst)
+	return rs.checkRateLimitByKey(ctx, key, rate, burst)
 }
 
-// CheckGlobalRateLimit checks if a request is allowed under the global rate limit
-func (rs *RedisStore) CheckGlobalRateLimit(rate float64, burst int) (bool, int, error) {
-	key := "ratelimit:global"
-	return rs.checkRateLimitByKey(key, rate, burst)
-}
-
-func (rs *RedisStore) checkRateLimitByKey(key string, rate float64, burst int) (bool, int, error) {
-	now := time.Now().UnixMilli()
-
+func (rs *RedisStore) checkRateLimitByKey(ctx context.Context, key string, rate float64, burst int) (bool, int, error) {
 	// Use EVALSHA if we have the SHA cached
 	var res interface{}
 	var err error
 
 	if rs.scriptSHA != "" {
-		res, err = rs.client.EvalSha(context.Background(), rs.scriptSHA, []string{key}, rate, burst, now).Result()
+		res, err = rs.client.EvalSha(ctx, rs.scriptSHA, []string{key}, rate, burst).Result()
 	}
 
 	// Fallback to EVAL if script is not cached or was evicted
 	if err != nil || rs.scriptSHA == "" {
-		res, err = rs.client.Eval(context.Background(), luaScript, []string{key}, rate, burst, now).Result()
+		res, err = rs.client.Eval(ctx, luaScript, []string{key}, rate, burst).Result()
 		if err != nil {
 			return false, 0, err
 		}
