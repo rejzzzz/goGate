@@ -1,36 +1,41 @@
 # Distributed API Gateway
 
-A production-grade reverse proxy and API gateway written from scratch in Go. Handles 10,000-20,000 requests per second with P99 latency under 15ms, supporting HTTP/REST and gRPC upstream routing with dynamic load balancing, rate limiting, circuit breaking, and comprehensive observability.
+A production-grade reverse proxy and API gateway written from scratch in Go. Handles **10,000-24,000+ requests per second** with P99 latency under 15ms, supporting HTTP/REST and gRPC upstream routing with dynamic load balancing, rate limiting, circuit breaking, service discovery, and comprehensive observability.
 
 ## Features
 
 ### Core Gateway Capabilities
 
-- **HTTP & gRPC Reverse Proxying**: Forward requests to multiple upstream services
-- **Dynamic Routing**: YAML-based configuration with hot-reload support
-- **Load Balancing**: Round-robin and least-connections strategies
-- **Circuit Breaker**: Closed/Open/Half-Open state machine for fault isolation
-- **Health Checking**: Background polling to detect unhealthy upstreams
-- **Rate Limiting**: Redis-backed token bucket with atomic Lua scripts
+- **HTTP & gRPC Reverse Proxying**: Forward requests to multiple upstream services.
+- **Dynamic Routing & Config**: YAML-based configuration with hot-reload support.
+- **Load Balancing**: Round-robin and least-connections strategies.
+- **Circuit Breaker**: Closed/Open/Half-Open state machine for fault isolation.
+- **Health Checking**: Background polling to detect unhealthy upstreams.
+- **Rate Limiting**: Redis-backed token bucket with atomic Lua scripts. Supports global rate limits and stress-testing bypass tokens.
+- **Service Discovery**: Dynamic upstream discovery via Hashicorp Consul and etcd.
+- **API Key Authentication**: Middleware for protecting endpoints with API keys.
 
-### Observability
+### Observability & Management
 
-- **Prometheus Metrics**: 10+ metric types for comprehensive monitoring
-- **Grafana Dashboard**: Pre-built with 10+ panels for live visualization
-- **Structured Logging**: JSON logs with request tracing
-- **Admin UI**: React-based interface for system inspection
+- **Prometheus Metrics**: 10+ metric types for comprehensive monitoring.
+- **Grafana Dashboard**: Pre-built, auto-provisioned dashboards with 10+ panels for live visualization.
+- **Structured Logging**: JSON logs with request tracing.
+- **Admin UI**: Beautiful React-based dashboard (using Nivo charts) for real-time system inspection, route management, and upstream health monitoring.
 
-### Infrastructure
+### Infrastructure & Deployment
 
-- **Docker Compose**: Full local development environment
-- **Graceful Shutdown**: Connection draining with configurable timeout
-- **Performance Optimized**: Atomic operations, connection pooling, tuned HTTP transport
+- **Caddy Integration**: Used as an edge reverse proxy and for SSL termination.
+- **Docker Compose**: Full local development environment.
+- **Optimized Containers**: Uses `scratch` base images and stripped binaries for minimal footprint.
+- **Graceful Shutdown**: Connection draining with configurable timeout.
+- **CI/CD & VPS**: Automated VPS deployment, CI/CD pipeline, and benchmark scripts included.
 
-## Performance Targets
+## Performance Targets & Load Testing
 
-- **Throughput**: 10,000-20,000 requests per second
-- **Latency**: P99 < 15ms (without upstream delay)
-- **Rate Limit Overhead**: < 1ms per request (Redis RTT)
+- **Throughput**: 10,000-24,000+ requests per second (verified via extensive k6 load testing).
+- **Concurrent Users**: Sustains 3,000+ Virtual Users (VUs) simultaneously without degradation.
+- **Latency**: P99 < 15ms (without upstream delay).
+- **Rate Limit Overhead**: < 1ms per request (Redis RTT).
 
 ## Architecture
 
@@ -39,12 +44,17 @@ Clients (k6 / wrk / curl)
         │
         ▼
 ┌──────────────────────────────┐
+│        Caddy (SSL)           │
+└──────────────┬───────────────┘
+               ▼
+┌──────────────────────────────┐
 │        API Gateway (Go)      │
 │  ┌──────────────────────┐    │
 │  │   Middleware Chain   │    │
 │  │  Recovery → RequestID│    │
-│  │  → Logging → Metrics │    │
-│  │  → RateLimit → Proxy │    │
+│  │  → Auth → Logging    │    │
+│  │  → Metrics → RateLmt │    │
+│  │  → Proxy             │    │
 │  └──────────────────────┘    │
 └──────────────────────────────┘
         │              │
@@ -52,11 +62,11 @@ Clients (k6 / wrk / curl)
    │ Upstreams│    │ Redis    │
    │ A, B, C,D│    │(RateLimit│
    └─────────┘    └──────────┘
-        │
-┌───────────────┐
-│ Prometheus    │
-│ + Grafana     │
-└───────────────┘
+        │              │
+┌───────────────┐ ┌──────────┐
+│ Prometheus    │ │ Consul / │
+│ + Grafana     │ │ etcd     │
+└───────────────┘ └──────────┘
 ```
 
 ## Quick Start
@@ -64,6 +74,7 @@ Clients (k6 / wrk / curl)
 ### Prerequisites
 
 - Go 1.22+
+- Node.js (for Admin UI)
 - Docker & Docker Compose
 - Make
 
@@ -82,7 +93,7 @@ make run-all
 ### Run Individual Components
 
 ```bash
-# Start only infrastructure (Redis, Prometheus, Grafana)
+# Start only infrastructure (Redis, Prometheus, Grafana, Consul)
 make run-infra
 
 # Build and run gateway locally
@@ -110,6 +121,8 @@ make lint
 
 ## Benchmarking
 
+We use `k6` for realistic, concurrent load testing and `wrk` for raw throughput analysis. Note that a bypass header (`X-Stress-Test-Token`) can be configured to bypass rate limits during testing.
+
 ```bash
 # Run k6 basic load test (requires gateway running)
 make bench-basic
@@ -126,20 +139,21 @@ wrk -t12 -c400 -d30s http://localhost:8080/api/v1/users
 │   ├── config/              # Configuration loading & validation
 │   ├── proxy/               # HTTP & gRPC reverse proxy
 │   ├── router/              # Route matching & dispatch
-│   ├── middleware/          # Middleware chain (Recovery, RequestID, Logging, Metrics, RateLimit)
+│   ├── middleware/          # Middleware chain (Auth, RequestID, Logging, Metrics, RateLimit)
 │   ├── loadbalancer/        # Round-robin & least-connections LB
 │   ├── healthcheck/         # Background health polling
 │   ├── metrics/             # Prometheus instrumentation
 │   ├── ratelimit/           # Redis-backed token bucket
 │   ├── circuitbreaker/      # State machine for fault isolation
+│   ├── discovery/           # Consul and etcd service discovery providers
 │   └── admin/               # Admin API server & handlers
 ├── examples/
 │   └── backends/            # Example/Mock microservices for testing
-├── admin-ui/                 # React admin UI
+├── admin-ui/                 # React admin UI (Vite + Nivo Charts)
 ├── configs/                  # Configuration files
-├── scripts/                  # Testing and helper scripts
+├── scripts/                  # Testing (k6, stress) and helper scripts
 ├── deploy/                   # Deployment files
-│   ├── Dockerfile            # Gateway container image
+│   ├── Dockerfile            # Gateway container image (scratch base)
 │   ├── docker-compose.yml    # Full stack composition
 │   └── prometheus/           # Monitoring configs
 └── Makefile                 # Build automation
@@ -157,6 +171,9 @@ GATEWAY_ADMIN_PORT=9090
 REDIS_ADDR=localhost:6379
 REDIS_PASSWORD=secret
 GATEWAY_LOG_LEVEL=debug
+TEST_API_KEY=my-secret-api-key
+STRESS_TEST_BYPASS_TOKEN=super-secret-bypass
+STRESS_TEST_BYPASS_HEADER=X-Stress-Test-Token
 ```
 
 See `.env.example` for all supported variables.
@@ -187,7 +204,7 @@ upstream_groups:
 
 ## Admin API
 
-The admin server runs on port 9090 and provides:
+The admin server runs on port `9090` and provides:
 
 ```
 GET  /admin/api/stats                    # Aggregated gateway stats
