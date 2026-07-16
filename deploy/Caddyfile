@@ -1,7 +1,7 @@
-api.gogate.rejwanul.dev {
+{$GATEWAY_API_DOMAIN:api.gogate.rejwanul.dev} {
     reverse_proxy gateway:8080
 }
 
-gogate.rejwanul.dev {
+{$GATEWAY_ADMIN_DOMAIN:gogate.rejwanul.dev} {
     reverse_proxy gateway:9090
 }

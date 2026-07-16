@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 
 	"golang.org/x/net/http2"
 )
@@ -32,7 +33,12 @@ func main() {
 	binary.BigEndian.PutUint32(frame[1:5], uint32(len(msg)))
 	copy(frame[5:], msg)
 
-	req, err := http.NewRequest("POST", "http://localhost:8080/echo.EchoService/Echo", bytes.NewReader(frame))
+	targetURL := os.Getenv("GRPC_TARGET_URL")
+	if targetURL == "" {
+		targetURL = "http://localhost:8080/echo.EchoService/Echo"
+	}
+
+	req, err := http.NewRequest("POST", targetURL, bytes.NewReader(frame))
 	if err != nil {
 		panic(err)
 	}

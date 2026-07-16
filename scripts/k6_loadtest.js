@@ -32,7 +32,7 @@ export const options = {
 };
 
 export default function () {
-    const url = 'https://api.gogate.rejwanul.dev/api/v1/users';
+    const url = __ENV.TARGET_URL || 'https://api.gogate.rejwanul.dev/api/v1/users';
     
     const params = {
         headers: {},

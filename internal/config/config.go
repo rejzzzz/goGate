@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/viper"
 )
 
@@ -22,7 +23,12 @@ func Load(path string) (*Config, error) {
 	}
 
 	var cfg Config
-	if err := v.Unmarshal(&cfg); err != nil {
+	if err := v.Unmarshal(&cfg, func(config *mapstructure.DecoderConfig) {
+		config.DecodeHook = mapstructure.ComposeDecodeHookFunc(
+			mapstructure.StringToSliceHookFunc(","),
+			mapstructure.StringToTimeDurationHookFunc(),
+		)
+	}); err != nil {
 		return nil, fmt.Errorf("unmarshaling config: %w", err)
 	}
 

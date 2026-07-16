@@ -1,5 +1,8 @@
-$baseUrl = "https://api.gogate.rejwanul.dev"
-$apiKey = if ($env:TEST_API_KEY) { $env:TEST_API_KEY } else { "YOUR_API_KEY_HERE" }
+$baseUrl = if ($env:TARGET_URL) { $env:TARGET_URL } else { "https://api.gogate.rejwanul.dev" }
+$apiKey = if ($env:TEST_API_KEY) { $env:TEST_API_KEY } else { 
+    Write-Host "Error: TEST_API_KEY environment variable is not set." -ForegroundColor Red
+    exit 1
+}
 $headers = @{ "X-API-Key" = $apiKey }
 $ErrorActionPreference = "Stop"
 

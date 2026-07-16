@@ -16,9 +16,7 @@ redis:
 
 auth:
     enabled: true
-    api_keys:
-        - "sk_test_1234567890"
-        - "sk_live_0987654321"
+    api_keys: []
 
 routes:
     - path: /api/v1/users

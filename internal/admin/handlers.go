@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -292,7 +293,10 @@ func (s *Server) HandleMetricsHistory(w http.ResponseWriter, r *http.Request) {
 
 	promURL := s.prometheusURL
 	if promURL == "" {
-		promURL = "http://prometheus:9090"
+		promURL = os.Getenv("PROMETHEUS_URL")
+		if promURL == "" {
+			promURL = "http://prometheus:9090"
+		}
 	}
 
 	// 1. Query RPS (rate of requests over 1m)

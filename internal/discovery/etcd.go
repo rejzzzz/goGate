@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -18,7 +19,10 @@ type EtcdProvider struct {
 // NewEtcdProvider initializes a new ETCD client
 func NewEtcdProvider(address string) (*EtcdProvider, error) {
 	if address == "" {
-		address = "127.0.0.1:2379"
+		address = os.Getenv("ETCD_ADDRESS")
+		if address == "" {
+			address = "127.0.0.1:2379"
+		}
 	}
 
 	client, err := clientv3.New(clientv3.Config{

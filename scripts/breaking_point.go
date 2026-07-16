@@ -6,13 +6,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/joho/godotenv"
 )
 
 func getEnvOrDefault(key, fallback string) string {
@@ -27,33 +26,20 @@ var (
 	concurrency = flag.Int("c", 100, "Number of concurrent workers (goroutines)")
 	duration    = flag.Duration("d", 30*time.Second, "Duration of the test")
 	apiKey      = flag.String("apikey", "", "API Key for auth (defaults to TEST_API_KEY env var if empty)")
-	bypassLimit = flag.Bool("bypass", true, "Use bypass token to bypass rate limit")
+	bypassLimit = flag.Bool("bypass", true, "Spoof X-Forwarded-For to bypass per-IP rate limits")
 )
 
 func main() {
 	flag.Parse()
 
-	// Try to load .env file from current directory
-	_ = godotenv.Load()
-
-	key := *apiKey
-	if key == "" {
-		key = os.Getenv("TEST_API_KEY")
-	}
-
-	bypassToken := os.Getenv("STRESS_TEST_BYPASS_TOKEN")
-	bypassHeader := os.Getenv("STRESS_TEST_BYPASS_HEADER")
-	if bypassHeader == "" {
-		bypassHeader = "X-Stress-Test-Token"
+	if *apiKey == "" {
+		*apiKey = os.Getenv("TEST_API_KEY")
 	}
 
 	fmt.Printf("🚀 Starting Breaking Point Stress Test 🚀\n")
 	fmt.Printf("URL: %s\n", *url)
 	fmt.Printf("Concurrency: %d workers\n", *concurrency)
 	fmt.Printf("Duration: %v\n", *duration)
-	if bypassToken != "" {
-		fmt.Printf("Bypass: Enabled via %s\n", bypassHeader)
-	}
 	fmt.Println("---------------------------------------------------")
 
 	// Create a custom HTTP client optimized for high throughput
@@ -86,6 +72,9 @@ func main() {
 		go func(workerID int) {
 			defer wg.Done()
 			
+			// Worker local random generator to avoid lock contention
+			rnd := rand.New(rand.NewSource(time.Now().UnixNano() + int64(workerID)))
+
 			for {
 				select {
 				case <-ctx.Done():
@@ -96,12 +85,14 @@ func main() {
 						continue
 					}
 
-					if key != "" {
-						req.Header.Set("X-API-Key", key)
+					if *apiKey != "" {
+						req.Header.Set("X-API-Key", *apiKey)
 					}
 
-					if *bypassLimit && bypassToken != "" {
-						req.Header.Set(bypassHeader, bypassToken)
+					// Spoof IP to bypass per-ip rate limit and truly test proxy throughput
+					if *bypassLimit {
+						fakeIP := fmt.Sprintf("%d.%d.%d.%d", rnd.Intn(256), rnd.Intn(256), rnd.Intn(256), rnd.Intn(256))
+						req.Header.Set("X-Forwarded-For", fakeIP)
 					}
 
 					resp, err := client.Do(req)

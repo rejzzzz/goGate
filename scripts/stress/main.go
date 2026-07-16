@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"sync"
@@ -10,10 +11,13 @@ import (
 )
 
 func main() {
-	url := "https://api.gogate.rejwanul.dev/api/v1/users"
+	url := os.Getenv("TARGET_URL")
+	if url == "" {
+		url = "https://api.gogate.rejwanul.dev/api/v1/users"
+	}
 	apiKey := os.Getenv("TEST_API_KEY")
 	if apiKey == "" {
-		apiKey = "YOUR_API_KEY_HERE"
+		log.Fatal("TEST_API_KEY environment variable is required")
 	}
 
 	concurrency := 50
