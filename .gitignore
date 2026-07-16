@@ -64,3 +64,16 @@ tmp/
 temp/
 
 AGENTS.md
+
+# Agent Artifacts & Chats
+user_input.txt
+chat*.txt
+chats/
+.gemini/
+brain/
+.system_generated/
+scratch/
+implementation_plan.md
+task.md
+walkthrough.md
+tmp_build*
