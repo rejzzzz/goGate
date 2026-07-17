@@ -23,8 +23,8 @@ func TestLoad_GatewayYAML(t *testing.T) {
 	if cfg.Redis.PoolSize != 50 {
 		t.Errorf("redis.pool_size: got %d, want 50", cfg.Redis.PoolSize)
 	}
-	if len(cfg.Routes) != 3 {
-		t.Errorf("routes: got %d, want 3", len(cfg.Routes))
+	if len(cfg.Routes) != 4 {
+		t.Errorf("routes: got %d, want 4", len(cfg.Routes))
 	}
 	if len(cfg.UpstreamGroups) != 3 {
 		t.Errorf("upstream_groups: got %d, want 3", len(cfg.UpstreamGroups))

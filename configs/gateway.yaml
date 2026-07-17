@@ -14,6 +14,9 @@ redis:
     min_idle_conns: 10
     max_retries: 3
 
+rabbitmq:
+    url: "amqp://guest:guest@localhost:5672/"
+
 auth:
     enabled: true
     api_keys: []
@@ -34,6 +37,11 @@ routes:
           requests_per_second: 50
           burst: 10
       load_balancer: least-connections
+
+    - path: /api/v1/events
+      async:
+          exchange: "events_exchange"
+          routing_key: "event.track"
 
     - path: /echo.EchoService/
       type: grpc
