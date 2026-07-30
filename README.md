@@ -4,7 +4,7 @@ A production-grade reverse proxy and API gateway written from scratch in Go. Han
 
 ## Features
 
-### Core Gateway Capabilities
+### Core Gateway Capabilities:
 
 - **HTTP & gRPC Reverse Proxying**: Forward requests to multiple upstream services.
 - **Dynamic Routing & Config**: YAML-based configuration with hot-reload support.
