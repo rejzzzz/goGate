@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -27,6 +28,7 @@ import (
 	"github.com/rejzzzz/goGate/internal/metrics"
 	"github.com/rejzzzz/goGate/internal/middleware"
 	"github.com/rejzzzz/goGate/internal/proxy"
+	"github.com/rejzzzz/goGate/internal/queue"
 	"github.com/rejzzzz/goGate/internal/ratelimit"
 	"github.com/rejzzzz/goGate/internal/router"
 	"go.uber.org/zap"
@@ -75,6 +77,12 @@ func Run(configPath string) {
 	redisStore := ratelimit.NewRedisStore(redisClient)
 	if err := redisStore.LoadScript(context.Background()); err != nil {
 		logger.Warn("Failed to preload Redis Lua script", zap.Error(err))
+	}
+
+	// Initialize RabbitMQ Queue Client
+	var queueClient *queue.Client
+	if cfg.RabbitMQ.URL != "" {
+		queueClient = queue.NewClient(cfg.RabbitMQ.URL, logger)
 	}
 
 	// 3. Build Upstream Map (Name -> List of *loadbalancer.Upstream)
@@ -229,6 +237,44 @@ func Run(configPath string) {
 			return
 		}
 
+		if route.Config.Async != nil {
+			if queueClient == nil {
+				http.Error(w, "Service Unavailable: Queue not configured", http.StatusServiceUnavailable)
+				return
+			}
+			
+			bodyBytes, err := io.ReadAll(req.Body)
+			if err != nil {
+				http.Error(w, "Bad Request", http.StatusBadRequest)
+				return
+			}
+			
+			headers := make(map[string]string)
+			for k, v := range req.Header {
+				headers[k] = strings.Join(v, ", ")
+			}
+
+			payload := queue.AsyncPayload{
+				Method:  req.Method,
+				URL:     req.URL.String(),
+				Headers: headers,
+				Body:    string(bodyBytes),
+			}
+			
+			payloadBytes, _ := json.Marshal(payload)
+			
+			if err := queueClient.Publish(req.Context(), route.Config.Async.Exchange, route.Config.Async.RoutingKey, payloadBytes); err != nil {
+				logger.Error("Failed to publish to queue", zap.Error(err))
+				http.Error(w, "Service Unavailable: Failed to process async request", http.StatusServiceUnavailable)
+				return
+			}
+			
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			w.Write([]byte(`{"status": "accepted"}`))
+			return
+		}
+
 		// Get upstreams
 		currentMap, _ := upstreamMap.Load().(map[string][]*loadbalancer.Upstream)
 		ups, exists := currentMap[route.Config.UpstreamGroup]
@@ -345,6 +391,11 @@ func Run(configPath string) {
 	logger.Info("Closing Redis connection pool...")
 	if err := redisClient.Close(); err != nil {
 		logger.Error("Error closing Redis pool", zap.Error(err))
+	}
+
+	if queueClient != nil {
+		logger.Info("Closing RabbitMQ connection...")
+		queueClient.Close()
 	}
 
 	logger.Info("Server gracefully stopped")

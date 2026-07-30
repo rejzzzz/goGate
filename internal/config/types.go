@@ -15,6 +15,7 @@ type Config struct {
 	TrustedProxies         []string        `mapstructure:"trusted_proxies"`
 	RateLimitBypassHeader  string          `mapstructure:"rate_limit_bypass_header"`
 	RateLimitBypassToken   string          `mapstructure:"rate_limit_bypass_token"`
+	RabbitMQ               RabbitMQConfig  `mapstructure:"rabbitmq"`
 }
 
 // AuthConfig holds global API Key authentication settings.
@@ -43,6 +44,11 @@ type RedisConfig struct {
 	MaxRetries   int    `mapstructure:"max_retries"`
 }
 
+// RabbitMQConfig holds RabbitMQ connection settings.
+type RabbitMQConfig struct {
+	URL string `mapstructure:"url"`
+}
+
 // Route defines a single routing rule.
 type Route struct {
 	Path          string          `mapstructure:"path"`
@@ -52,6 +58,13 @@ type Route struct {
 	LoadBalancer  string          `mapstructure:"load_balancer"`
 	Type          string          `mapstructure:"type"` // "grpc" for gRPC routes, empty for HTTP
 	AuthRequired  *bool           `mapstructure:"auth_required"`
+	Async         *AsyncConfig    `mapstructure:"async"`
+}
+
+// AsyncConfig holds configuration for asynchronous routes.
+type AsyncConfig struct {
+	Exchange   string `mapstructure:"exchange"`
+	RoutingKey string `mapstructure:"routing_key"`
 }
 
 // RateLimitConfig holds per-route rate limiting parameters.

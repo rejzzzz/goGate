@@ -123,16 +123,22 @@ func validateRoute(r Route, groupNames map[string]struct{}) error {
 		return fmt.Errorf("route %q: path must start with '/'", r.Path)
 	}
 
-	if _, ok := groupNames[r.UpstreamGroup]; !ok {
-		return fmt.Errorf("route %q: upstream_group %q not found in upstream_groups", r.Path, r.UpstreamGroup)
-	}
+	if r.Async != nil {
+		if r.Async.Exchange == "" || r.Async.RoutingKey == "" {
+			return fmt.Errorf("route %q: async config must specify exchange and routing_key", r.Path)
+		}
+	} else {
+		if _, ok := groupNames[r.UpstreamGroup]; !ok {
+			return fmt.Errorf("route %q: upstream_group %q not found in upstream_groups", r.Path, r.UpstreamGroup)
+		}
 
-	// gRPC routes do not use a load-balancer field in the same way; skip LB
-	// validation for them to avoid false negatives when the field is empty.
-	if r.Type != "grpc" {
-		valid := map[string]bool{"round-robin": true, "least-connections": true}
-		if !valid[r.LoadBalancer] {
-			return fmt.Errorf("route %q: load_balancer %q must be \"round-robin\" or \"least-connections\"", r.Path, r.LoadBalancer)
+		// gRPC routes do not use a load-balancer field in the same way; skip LB
+		// validation for them to avoid false negatives when the field is empty.
+		if r.Type != "grpc" {
+			valid := map[string]bool{"round-robin": true, "least-connections": true}
+			if !valid[r.LoadBalancer] {
+				return fmt.Errorf("route %q: load_balancer %q must be \"round-robin\" or \"least-connections\"", r.Path, r.LoadBalancer)
+			}
 		}
 	}
 
